@@ -1,0 +1,8 @@
+/.idea/
+/test_data/test_module/terraform.tfstate*
+/test_data/test_module/.terraform.lock.hcl
+.terraform
+__pycache__
+*.zip
+/test_data/test_module/terraform.tfvars
+/test_data/test_module/.terraform.tfstate.lock.info
