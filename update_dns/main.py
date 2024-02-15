@@ -32,7 +32,9 @@ def add_record(
     zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
 ):
     """Add the instance to DNS."""
-    print(f"Adding instance {instance_id} as a hostname {hostname} to zone {zone_name}.")
+    print(
+        f"Adding instance {instance_id} as a hostname {hostname} to zone {zone_name}."
+    )
     print(f"{zone_name =}")
     instance_ip = get_instance_ip(instance_id, public=public)
     print(f"{instance_ip = }")
@@ -111,12 +113,14 @@ def add_record(
     )
 
 
-def remove_record(zone_id, zone_name, hostname, instance_id, ttl: int):
+def remove_record(
+    zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
+):
     """Remove the instance from DNS."""
     print(f"Removing instance {instance_id} from zone {zone_id}")
     print(f"{zone_name =}")
-    public_ip = get_instance_ip(instance_id)
-    print(f"{public_ip = }")
+    instance_ip = get_instance_ip(instance_id, public=public)
+    print(f"{instance_ip = }")
 
     route53_client = boto3.client("route53")
     response = route53_client.list_resource_record_sets(
@@ -129,7 +133,7 @@ def remove_record(zone_id, zone_name, hostname, instance_id, ttl: int):
     for rr_set in response["ResourceRecordSets"]:
         for rr in rr_set["ResourceRecords"]:
             ip = rr["Value"]
-            if ip != public_ip:
+            if ip != instance_ip:
                 ip_set.add(rr["Value"])
     r_records = [{"Value": ip} for ip in list(ip_set)]
     if r_records:
@@ -159,7 +163,7 @@ def remove_record(zone_id, zone_name, hostname, instance_id, ttl: int):
                         "ResourceRecordSet": {
                             "Name": f"{hostname}.{zone_name}",
                             "Type": "A",
-                            "ResourceRecords": [{"Value": public_ip}],
+                            "ResourceRecords": [{"Value": instance_ip}],
                             "TTL": ttl,
                         },
                     }
@@ -274,7 +278,9 @@ def lambda_handler(event, context):
                 f"instance {instance_id} is a member of the {environ['ASG_NAME']} autoscaling group."
             )
             if event["detail"]["state"] == "running":
-                print(f"Instance state is {event['detail']['state']}. Will add an A record.")
+                print(
+                    f"Instance state is {event['detail']['state']}. Will add an A record."
+                )
                 add_record(
                     environ["ROUTE53_ZONE_ID"],
                     environ["ROUTE53_ZONE_NAME"],
@@ -284,13 +290,16 @@ def lambda_handler(event, context):
                     public=public,
                 )
             elif event["detail"]["state"] in ["shutting-down", "terminated"]:
-                print(f"Instance state is {event['detail']['state']}. Will remove an A record.")
+                print(
+                    f"Instance state is {event['detail']['state']}. Will remove an A record."
+                )
                 remove_record(
                     environ["ROUTE53_ZONE_ID"],
                     environ["ROUTE53_ZONE_NAME"],
                     resolve_hostname(instance_id),
                     instance_id,
                     int(environ["ROUTE53_TTL"]),
+                    public=public,
                 )
         else:
             print(
