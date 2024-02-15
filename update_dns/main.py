@@ -273,14 +273,25 @@ def lambda_handler(event, context):
             print(
                 f"instance {instance_id} is a member of the {environ['ASG_NAME']} autoscaling group."
             )
-            add_record(
-                environ["ROUTE53_ZONE_ID"],
-                environ["ROUTE53_ZONE_NAME"],
-                resolve_hostname(instance_id),
-                instance_id,
-                int(environ["ROUTE53_TTL"]),
-                public=public,
-            )
+            if event["detail"]["state"] == "running":
+                print(f"Instance state is {event['detail']['state']}. Will add an A record.")
+                add_record(
+                    environ["ROUTE53_ZONE_ID"],
+                    environ["ROUTE53_ZONE_NAME"],
+                    resolve_hostname(instance_id),
+                    instance_id,
+                    int(environ["ROUTE53_TTL"]),
+                    public=public,
+                )
+            elif event["detail"]["state"] in ["shutting-down", "terminated"]:
+                print(f"Instance state is {event['detail']['state']}. Will remove an A record.")
+                remove_record(
+                    environ["ROUTE53_ZONE_ID"],
+                    environ["ROUTE53_ZONE_NAME"],
+                    resolve_hostname(instance_id),
+                    instance_id,
+                    int(environ["ROUTE53_TTL"]),
+                )
         else:
             print(
                 f"Instance {instance_id} does not belong to {environ['ASG_NAME']} autoscaling group. "
