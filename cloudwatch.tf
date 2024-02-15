@@ -17,7 +17,7 @@ resource "aws_cloudwatch_event_rule" "scale" {
   )
 }
 
-resource "aws_cloudwatch_event_rule" "instance_start" {
+resource "aws_cloudwatch_event_rule" "instance_change" {
   name_prefix = "asg_instance"
   description = "Instance running"
   event_pattern = jsonencode(
@@ -27,7 +27,10 @@ resource "aws_cloudwatch_event_rule" "instance_start" {
         "EC2 Instance State-change Notification",
       ],
       "detail" : {
-        "state" : ["running"]
+        "state" : [
+          "running",
+          "shutting-down",
+        ]
       }
     }
   )
@@ -40,7 +43,7 @@ resource "aws_cloudwatch_event_target" "scale-out" {
 
 resource "aws_cloudwatch_event_target" "instance-running" {
   arn  = aws_lambda_function.update_dns.arn
-  rule = aws_cloudwatch_event_rule.instance_start.name
+  rule = aws_cloudwatch_event_rule.instance_change.name
 }
 
 
