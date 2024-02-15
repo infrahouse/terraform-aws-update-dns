@@ -299,6 +299,7 @@ def lambda_handler(event, context):
                     resolve_hostname(instance_id),
                     instance_id,
                     int(environ["ROUTE53_TTL"]),
+                    public=public,
                 )
         else:
             print(
