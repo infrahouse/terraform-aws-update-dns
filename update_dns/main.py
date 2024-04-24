@@ -1,16 +1,22 @@
+import contextlib
+import json
+import os
+import time
 from os import environ
 from pprint import pprint
+
+import botocore
 
 import boto3
 from botocore.exceptions import ClientError
 
 
 def complete_lifecycle_action(
-    lifecyclehookname,
-    autoscalinggroupname,
-    lifecycleactiontoken,
-    instanceid,
-    lifecycleactionresult="CONTINUE",
+        lifecyclehookname,
+        autoscalinggroupname,
+        lifecycleactiontoken,
+        instanceid,
+        lifecycleactionresult="CONTINUE",
 ):
     print("Completing lifecycle hook action")
     print(f"{lifecyclehookname=}")
@@ -29,17 +35,21 @@ def complete_lifecycle_action(
 
 
 def add_record(
-    zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
+        zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True, route53_client=None, ec2_client=None
 ):
     """Add the instance to DNS."""
     print(
         f"Adding instance {instance_id} as a hostname {hostname} to zone {zone_name}."
     )
-    print(f"{zone_name =}")
+    if not zone_name.endswith("."):
+        zone_name += "."
+
+    print(f"{zone_name = }")
+
     instance_ip = get_instance_ip(instance_id, public=public)
     print(f"{instance_ip = }")
 
-    route53_client = boto3.client("route53")
+    route53_client = route53_client or boto3.client("route53")
     start_record_type = None
     start_record_name = None
     start_record_identifier = None
@@ -59,18 +69,18 @@ def add_record(
             kwargs["StartRecordIdentifier"] = start_record_identifier
 
         response = route53_client.list_resource_record_sets(**kwargs)
-        pprint(response)
+        print(json.dumps(response, indent=4))
         for rr_set in response["ResourceRecordSets"]:
             print(f"{rr_set = }")
             if (
-                rr_set["Name"] == f"{hostname}.{zone_name}"
-                and rr_set["Type"] == "A"
-                and "ResourceRecords" in rr_set
+                    rr_set["Name"] == f"{hostname}.{zone_name}"
+                    and rr_set["Type"] == "A"
+                    and "ResourceRecords" in rr_set
             ):
                 for rr in rr_set["ResourceRecords"]:
                     ip_set.add(rr["Value"])
 
-        r_records = [{"Value": ip} for ip in list(ip_set)]
+        r_records = [{"Value": ip} for ip in sorted(list(ip_set))]
         if response["IsTruncated"]:
             start_record_type = response["NextRecordType"]
             start_record_name = response["NextRecordName"]
@@ -95,7 +105,7 @@ def add_record(
             ]
         },
     )
-    ec2_client = boto3.client("ec2")
+    ec2_client = ec2_client or boto3.client("ec2")
     ec2_client.create_tags(
         Resources=[
             instance_id,
@@ -114,7 +124,7 @@ def add_record(
 
 
 def remove_record(
-    zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
+        zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
 ):
     """Remove the instance from DNS."""
     print(f"Removing instance {instance_id} from zone {zone_id}")
@@ -227,6 +237,43 @@ def resolve_hostname(instance_id):
     return environ["ROUTE53_HOSTNAME"]
 
 
+@contextlib.contextmanager
+def lock(my_resource_id):
+    timeout = 30
+    table_name = os.getenv("LOCK_TABLE_NAME")
+    now = time.time()
+    dyn_table = boto3.resource('dynamodb').Table(table_name)
+    while True:
+        if time.time() > now + timeout:
+            raise RuntimeError("Failed to lock DNS lock table after %d seconds" % timeout)
+
+        try:
+            # Put item with conditional expression to acquire the lock
+
+            dyn_table.put_item(
+                Item={'ResourceId': my_resource_id},
+                ConditionExpression="attribute_not_exists(#r)",
+                ExpressionAttributeNames={"#r": "ResourceId"})
+            # Lock acquired
+            break
+        except botocore.exceptions.ClientError as e:
+            # Another exception than ConditionalCheckFailedException was caught, raise as-is
+            if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                raise
+            else:
+                # Else, lock cannot be acquired because already locked
+                time.sleep(1)
+    try:
+        yield
+
+    finally:
+        dyn_table.delete_item(
+            Key={
+                "ResourceId": my_resource_id,
+            }
+        )
+
+
 def lambda_handler(event, context):
     print(f"{event = }")
     # Credit: https://stackoverflow.com/questions/715417/converting-from-a-string-to-boolean-in-python
@@ -247,13 +294,14 @@ def lambda_handler(event, context):
             print(f"{lifecycle_transition = }")
 
             if lifecycle_transition == "autoscaling:EC2_INSTANCE_TERMINATING":
-                remove_record(
-                    environ["ROUTE53_ZONE_ID"],
-                    environ["ROUTE53_ZONE_NAME"],
-                    resolve_hostname(event["detail"]["EC2InstanceId"]),
-                    event["detail"]["EC2InstanceId"],
-                    int(environ["ROUTE53_TTL"]),
-                )
+                with lock("update-dns"):
+                    remove_record(
+                        environ["ROUTE53_ZONE_ID"],
+                        environ["ROUTE53_ZONE_NAME"],
+                        resolve_hostname(event["detail"]["EC2InstanceId"]),
+                        event["detail"]["EC2InstanceId"],
+                        int(environ["ROUTE53_TTL"]),
+                    )
 
         finally:
             print(
@@ -271,8 +319,8 @@ def lambda_handler(event, context):
     else:
         instance_id = event["detail"]["instance-id"]
         if (
-            "ASG_NAME" in environ
-            and get_instance_asg(instance_id) == environ["ASG_NAME"]
+                "ASG_NAME" in environ
+                and get_instance_asg(instance_id) == environ["ASG_NAME"]
         ):
             print(
                 f"instance {instance_id} is a member of the {environ['ASG_NAME']} autoscaling group."
@@ -281,26 +329,28 @@ def lambda_handler(event, context):
                 print(
                     f"Instance state is {event['detail']['state']}. Will add an A record."
                 )
-                add_record(
-                    environ["ROUTE53_ZONE_ID"],
-                    environ["ROUTE53_ZONE_NAME"],
-                    resolve_hostname(instance_id),
-                    instance_id,
-                    int(environ["ROUTE53_TTL"]),
-                    public=public,
-                )
+                with lock("update-dns"):
+                    add_record(
+                        environ["ROUTE53_ZONE_ID"],
+                        environ["ROUTE53_ZONE_NAME"],
+                        resolve_hostname(instance_id),
+                        instance_id,
+                        int(environ["ROUTE53_TTL"]),
+                        public=public,
+                    )
             elif event["detail"]["state"] in ["shutting-down", "terminated"]:
                 print(
                     f"Instance state is {event['detail']['state']}. Will remove an A record."
                 )
-                remove_record(
-                    environ["ROUTE53_ZONE_ID"],
-                    environ["ROUTE53_ZONE_NAME"],
-                    resolve_hostname(instance_id),
-                    instance_id,
-                    int(environ["ROUTE53_TTL"]),
-                    public=public,
-                )
+                with lock("update-dns"):
+                    remove_record(
+                        environ["ROUTE53_ZONE_ID"],
+                        environ["ROUTE53_ZONE_NAME"],
+                        resolve_hostname(instance_id),
+                        instance_id,
+                        int(environ["ROUTE53_TTL"]),
+                        public=public,
+                    )
         else:
             print(
                 f"Instance {instance_id} does not belong to {environ['ASG_NAME']} autoscaling group. "

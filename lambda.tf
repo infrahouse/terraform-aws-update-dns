@@ -67,6 +67,15 @@ data "aws_iam_policy_document" "lambda-permissions" {
       "arn:aws:route53:::hostedzone/${var.route53_zone_id}"
     ]
   }
+  statement {
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+    ]
+    resources = [
+      aws_dynamodb_table.update_dns_lock.arn
+    ]
+  }
 }
 
 resource "aws_iam_policy" "lambda_logging" {
@@ -109,7 +118,7 @@ resource "aws_lambda_function" "update_dns" {
   handler       = "main.lambda_handler"
 
   runtime = "python3.9"
-  timeout = 30
+  timeout = 60
   environment {
     variables = {
       "ROUTE53_ZONE_ID" : var.route53_zone_id,
@@ -117,7 +126,8 @@ resource "aws_lambda_function" "update_dns" {
       "ROUTE53_HOSTNAME" : var.route53_hostname,
       "ROUTE53_TTL" : var.route53_ttl,
       "ROUTE53_PUBLIC_IP" : var.route53_public_ip
-      "ASG_NAME" : var.asg_name
+      "ASG_NAME" : var.asg_name,
+      "LOCK_TABLE_NAME" : aws_dynamodb_table.update_dns_lock.name
     }
   }
   depends_on = [
