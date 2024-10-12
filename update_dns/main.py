@@ -12,11 +12,11 @@ from botocore.exceptions import ClientError
 
 
 def complete_lifecycle_action(
-        lifecyclehookname,
-        autoscalinggroupname,
-        lifecycleactiontoken,
-        instanceid,
-        lifecycleactionresult="CONTINUE",
+    lifecyclehookname,
+    autoscalinggroupname,
+    lifecycleactiontoken,
+    instanceid,
+    lifecycleactionresult="CONTINUE",
 ):
     print("Completing lifecycle hook action")
     print(f"{lifecyclehookname=}")
@@ -35,7 +35,14 @@ def complete_lifecycle_action(
 
 
 def add_record(
-        zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True, route53_client=None, ec2_client=None
+    zone_id,
+    zone_name,
+    hostname,
+    instance_id,
+    ttl: int,
+    public: bool = True,
+    route53_client=None,
+    ec2_client=None,
 ):
     """Add the instance to DNS."""
     print(
@@ -73,9 +80,9 @@ def add_record(
         for rr_set in response["ResourceRecordSets"]:
             print(f"{rr_set = }")
             if (
-                    rr_set["Name"] == f"{hostname}.{zone_name}"
-                    and rr_set["Type"] == "A"
-                    and "ResourceRecords" in rr_set
+                rr_set["Name"] == f"{hostname}.{zone_name}"
+                and rr_set["Type"] == "A"
+                and "ResourceRecords" in rr_set
             ):
                 for rr in rr_set["ResourceRecords"]:
                     ip_set.add(rr["Value"])
@@ -124,7 +131,7 @@ def add_record(
 
 
 def remove_record(
-        zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
+    zone_id, zone_name, hostname, instance_id, ttl: int, public: bool = True
 ):
     """Remove the instance from DNS."""
     print(f"Removing instance {instance_id} from zone {zone_id}")
@@ -242,23 +249,26 @@ def lock(my_resource_id):
     timeout = 30
     table_name = os.getenv("LOCK_TABLE_NAME")
     now = time.time()
-    dyn_table = boto3.resource('dynamodb').Table(table_name)
+    dyn_table = boto3.resource("dynamodb").Table(table_name)
     while True:
         if time.time() > now + timeout:
-            raise RuntimeError("Failed to lock DNS lock table after %d seconds" % timeout)
+            raise RuntimeError(
+                "Failed to lock DNS lock table after %d seconds" % timeout
+            )
 
         try:
             # Put item with conditional expression to acquire the lock
 
             dyn_table.put_item(
-                Item={'ResourceId': my_resource_id},
+                Item={"ResourceId": my_resource_id},
                 ConditionExpression="attribute_not_exists(#r)",
-                ExpressionAttributeNames={"#r": "ResourceId"})
+                ExpressionAttributeNames={"#r": "ResourceId"},
+            )
             # Lock acquired
             break
         except botocore.exceptions.ClientError as e:
             # Another exception than ConditionalCheckFailedException was caught, raise as-is
-            if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+            if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
                 raise
             else:
                 # Else, lock cannot be acquired because already locked
@@ -288,7 +298,9 @@ def lambda_handler(event, context):
         "certainly",
         "uh-huh",
     ]
-    if "LifecycleTransition" in event["detail"]:
+    if "LifecycleTransition" in event["detail"] and event["detail"][
+        "LifecycleHookName"
+    ] in ["update-dns-launching", "update-dns-terminating"]:
         try:
             lifecycle_transition = event["detail"]["LifecycleTransition"]
             print(f"{lifecycle_transition = }")
@@ -319,8 +331,8 @@ def lambda_handler(event, context):
     else:
         instance_id = event["detail"]["instance-id"]
         if (
-                "ASG_NAME" in environ
-                and get_instance_asg(instance_id) == environ["ASG_NAME"]
+            "ASG_NAME" in environ
+            and get_instance_asg(instance_id) == environ["ASG_NAME"]
         ):
             print(
                 f"instance {instance_id} is a member of the {environ['ASG_NAME']} autoscaling group."
