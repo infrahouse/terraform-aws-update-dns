@@ -12,6 +12,7 @@ resource "aws_dynamodb_table" "update_dns_lock" {
     type = "S"
   }
   tags = {
-    "asg_name" : var.asg_name
+    asg_name : var.asg_name
+    VantaNoAlert : "Table used for global lock and doesn't contain user data"
   }
 }
