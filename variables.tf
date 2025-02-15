@@ -3,6 +3,11 @@ variable "asg_name" {
   type        = string
 }
 
+variable "log_retention_in_days" {
+  description = "Number of days to retain logs in CloudWatch."
+  type        = number
+  default     = 365
+}
 variable "route53_ttl" {
   description = "TTL in seconds on the route53 A record."
   type        = number
@@ -18,6 +23,7 @@ variable "route53_public_ip" {
   type        = bool
   default     = true
 }
+
 variable "route53_hostname" {
   description = "An A record with this name will be created in the rout53 zone. Can be either a string or one of special values: _PrivateDnsName_, tbc."
   type        = string

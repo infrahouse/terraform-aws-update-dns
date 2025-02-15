@@ -23,13 +23,14 @@ resource "aws_autoscaling_group" "website" {
     id      = aws_launch_template.website.id
     version = aws_launch_template.website.latest_version
   }
-  lifecycle {
-    create_before_destroy = true
-  }
   tag {
     key                 = "update-dns-rule"
     propagate_at_launch = true
     value               = var.route53_hostname
+  }
+  initial_lifecycle_hook {
+    lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
+    name                 = module.update-dns.lifecycle_name_launching
   }
   depends_on = [
     module.update-dns
@@ -44,5 +45,18 @@ resource "aws_launch_template" "website" {
   lifecycle {
     create_before_destroy = true
   }
+}
 
+resource "aws_autoscaling_lifecycle_hook" "launching" {
+  autoscaling_group_name = aws_autoscaling_group.website.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
+  name                   = module.update-dns.lifecycle_name_launching
+  heartbeat_timeout      = 3600
+}
+
+resource "aws_autoscaling_lifecycle_hook" "terminating" {
+  autoscaling_group_name = aws_autoscaling_group.website.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_TERMINATING"
+  name                   = module.update-dns.lifecycle_name_terminating
+  heartbeat_timeout      = 3600
 }

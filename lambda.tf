@@ -61,7 +61,8 @@ data "aws_iam_policy_document" "lambda-permissions" {
   statement {
     actions = [
       "route53:ChangeResourceRecordSets",
-      "route53:ListResourceRecordSets"
+      "route53:ListResourceRecordSets",
+      "route53:GetHostedZone",
     ]
     resources = [
       "arn:aws:route53:::hostedzone/${var.route53_zone_id}"
@@ -117,7 +118,7 @@ resource "aws_lambda_function" "update_dns" {
   role          = aws_iam_role.iam_for_lambda.arn
   handler       = "main.lambda_handler"
 
-  runtime = "python3.9"
+  runtime = "python3.12"
   timeout = 60
   environment {
     variables = {
@@ -128,10 +129,13 @@ resource "aws_lambda_function" "update_dns" {
       "ROUTE53_PUBLIC_IP" : var.route53_public_ip
       "ASG_NAME" : var.asg_name,
       "LOCK_TABLE_NAME" : aws_dynamodb_table.update_dns_lock.name
+      "LIFECYCLE_HOOK_LAUNCHING" : local.lifecycle_hook_launching
+      "LIFECYCLE_HOOK_TERMINATING" : local.lifecycle_hook_terminating
     }
   }
   depends_on = [
     data.archive_file.lambda,
+    aws_s3_object.lambda_package,
   ]
 }
 
@@ -145,11 +149,4 @@ resource "aws_lambda_permission" "allow_cloudwatch_asg_lifecycle_hook" {
   function_name = aws_lambda_function.update_dns.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.scale.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_instance_running" {
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.update_dns.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.instance_change.arn
 }

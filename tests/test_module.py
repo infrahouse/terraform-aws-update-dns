@@ -1,19 +1,17 @@
 import json
 import time
 from os import path as osp
-from pprint import pprint, pformat
+from pprint import pformat
 from textwrap import dedent
+from time import sleep
 
 import pytest
+from infrahouse_core.aws.asg import ASG
+from infrahouse_core.aws.route53.zone import Zone
 from infrahouse_toolkit.terraform import terraform_apply
 
 from tests.conftest import (
     LOG,
-    TRACE_TERRAFORM,
-    DESTROY_AFTER,
-    TEST_ZONE,
-    TEST_ROLE_ARN,
-    REGION,
     TERRAFORM_ROOT_DIR,
 )
 
@@ -24,11 +22,12 @@ from tests.conftest import (
 )
 def test_module(
     service_network,
-    autoscaling_client,
-    route53_client,
-    ec2_client,
     route53_hostname,
     asg_size,
+    keep_after,
+    test_role_arn,
+    aws_region,
+    test_zone_name,
 ):
     subnet_public_ids = service_network["subnet_public_ids"]["value"]
     subnet_private_ids = service_network["subnet_private_ids"]["value"]
@@ -39,9 +38,8 @@ def test_module(
         fp.write(
             dedent(
                 f"""
-                    region = "{REGION}"
-                    role_arn = "{TEST_ROLE_ARN}"
-                    test_zone = "{TEST_ZONE}"
+                    region = "{aws_region}"
+                    test_zone = "{test_zone_name}"
 
                     subnet_public_ids = {json.dumps(subnet_public_ids)}
                     subnet_private_ids = {json.dumps(subnet_private_ids)}
@@ -52,35 +50,29 @@ def test_module(
                     """
             )
         )
+        if test_role_arn:
+            fp.write(
+                dedent(
+                    f"""
+                    role_arn      = "{test_role_arn}"
+                    """
+                )
+            )
 
     with terraform_apply(
         terraform_module_dir,
-        destroy_after=DESTROY_AFTER,
+        destroy_after=not keep_after,
         json_output=True,
-        enable_trace=TRACE_TERRAFORM,
     ) as tf_output:
         LOG.info("%s", json.dumps(tf_output, indent=4))
-        asg_name = tf_output["asg_name"]["value"]
-        zone_id = tf_output["zone_id"]["value"]
-        # refresh_id = autoscaling_client.start_instance_refresh(
-        #     AutoScalingGroupName=tf_output["asg_name"]["value"],
-        #     Preferences={
-        #         "MinHealthyPercentage": 0,
-        #         "InstanceWarmup": 60,
-        #         "SkipMatching": False,
-        #         "ScaleInProtectedInstances": "Refresh",
-        #     },
-        # )["InstanceRefreshId"]
+        asg = ASG(tf_output["asg_name"]["value"], region=aws_region)
+        zone = Zone(zone_id=tf_output["zone_id"]["value"])
+
         LOG.info("Wait until all refreshes are done")
-        LOG.info("Waiting %d * 60 seconds until lambda is done", asg_size)
-        time.sleep(asg_size * 60)
+
         while True:
-            response = autoscaling_client.describe_instance_refreshes(
-                AutoScalingGroupName=tf_output["asg_name"]["value"],
-            )
-            LOG.debug("describe_instance_refreshes() = %s", pformat(response))
             all_done = True
-            for refresh in response["InstanceRefreshes"]:
+            for refresh in asg.instance_refreshes:
                 status = refresh["Status"]
                 if status not in [
                     "Successful",
@@ -96,67 +88,23 @@ def test_module(
                 time.sleep(60)
 
         if route53_hostname == "_PrivateDnsName_":
-            response = autoscaling_client.describe_auto_scaling_groups(
-                AutoScalingGroupNames=[asg_name],
-            )
-            for instance in response["AutoScalingGroups"][0]["Instances"]:
-                instance_id = instance["InstanceId"]
-                response = ec2_client.describe_instances(
-                    InstanceIds=[
-                        instance_id,
-                    ],
-                )
-                LOG.debug("describe_instances() = %s", pformat(response))
-                ipaddress = response["Reservations"][0]["Instances"][0][
-                    "PrivateIpAddress"
-                ]
-                hostname = None
-                for tag in response["Reservations"][0]["Instances"][0]["Tags"]:
-                    if tag["Key"] == "Name":
-                        hostname = tag["Value"]
-
-                assert ipaddress
-                assert hostname
-                response = route53_client.list_resource_record_sets(
-                    HostedZoneId=zone_id,
-                    StartRecordName=f"{hostname}.{TEST_ZONE}",
-                    StartRecordType="A",
-                )
-                assert (
-                    response["ResourceRecordSets"][0]["ResourceRecords"][0]["Value"]
-                    == ipaddress
-                )
+            for instance in asg.instances:
+                assert instance.private_ip
+                assert instance.hostname
+                assert zone.search_hostname(instance.hostname) == [instance.private_ip]
         else:
             now = time.time()
-            timeout = 60
+            timeout = 60 * len(asg.instances)
             while True:
                 if time.time() > now + timeout:
                     raise RuntimeError(
                         f"There is no DNS update after {timeout} seconds"
                     )
-
-                response = route53_client.list_resource_record_sets(
-                    HostedZoneId=zone_id,
-                    StartRecordName=f"{route53_hostname}.{TEST_ZONE}",
-                    StartRecordType="A",
-                )
-                LOG.debug("list_resource_record_sets() = %s", pformat(response))
-
-                # Wait up to $timeout seconds for lambda to add $asg_size values to the DNS record.
-                if (
-                    response["ResourceRecordSets"]
-                    and len(response["ResourceRecordSets"][0]["ResourceRecords"])
-                    == asg_size
-                ):
-                    assert (
-                        response["ResourceRecordSets"][0]["Name"]
-                        == f"{route53_hostname}.{TEST_ZONE}."
-                    )
-                    assert response["ResourceRecordSets"][0]["Type"] == "A"
-                    assert (
-                        len(response["ResourceRecordSets"][0]["ResourceRecords"])
-                        == asg_size
+                try:
+                    assert sorted(zone.search_hostname(route53_hostname)) == sorted(
+                        [i.private_ip for i in asg.instances]
                     )
                     break
-                else:
-                    time.sleep(5)
+                except AssertionError:
+                    LOG.info("Waiting 5 more seconds for DNS update")
+                    sleep(5)

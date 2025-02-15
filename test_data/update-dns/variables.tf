@@ -1,4 +1,6 @@
-variable "role_arn" {}
+variable "role_arn" {
+  default = null
+}
 variable "test_zone" {}
 variable "region" {}
 
