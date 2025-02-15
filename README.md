@@ -5,37 +5,48 @@ When the instance is terminated, the respective record is removed.
 
 ## Usage
 
-Prerequisites:
-
-Autoscaling group name must be known before using this module. "Known" means that either we already created the ASG:
+* Chose autoscaling group name. It must be known before we create the autoscaling group or the update-dns module.
+* Create the update-dns module.
 ```hcl
-resource "aws_autoscaling_group" "update-dns" {
-  max_size = 1
-  min_size = 3
-}
-```
-and then we can pass the ASG name as `asg_name = aws_autoscaling_group.update-dns.name` or we know 
-the ASG name beforehand
-```hcl
-resource "random_string" "asg_name" {
-  length  = 6
-  special = false
-}
-locals {
-  asg_name = "${aws_launch_template.jumphost.name}-${random_string.asg_name.result}"
-}
-```
-and then we can pass `asg_name = local.asg_name`:
-
-```hcl
-module "update_dns" {
-  source            = "infrahouse/update-dns/aws"
-  version           = "~> 0.1"
+module "update-dns" {
+  source            = "../../"
   asg_name          = local.asg_name
-  route53_zone_id   = var.route53_zone_id
+  route53_zone_id   = data.aws_route53_zone.cicd.zone_id
+  route53_public_ip = false
   route53_hostname  = var.route53_hostname
-  route53_public_ip = true
 }
+```
+* Create the autoscaling group. In the autoscaling group, create the initial lifecycle hook. It is needed to ensure the DNS records are created for the first instances in the ASG.
+```hcl
+resource "aws_autoscaling_group" "website" {
+  name                = local.asg_name
+...
+  initial_lifecycle_hook {
+    lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
+    name                 = module.update-dns.lifecycle_name_launching
+  }
+  depends_on = [
+    module.update-dns
+  ]
+}
+```
+* Create lifecycle launching and terminating hook. Note the lifecycle names. They are semi-random and should be taken from the update-dns module outputs.
+
+```hcl
+resource "aws_autoscaling_lifecycle_hook" "launching" {
+  autoscaling_group_name = aws_autoscaling_group.website.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
+  name                   = module.update-dns.lifecycle_name_launching
+  heartbeat_timeout      = 3600
+}
+
+resource "aws_autoscaling_lifecycle_hook" "terminating" {
+  autoscaling_group_name = aws_autoscaling_group.website.name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_TERMINATING"
+  name                   = module.update-dns.lifecycle_name_terminating
+  heartbeat_timeout      = 3600
+}
+
 ```
 ## Requirements
 
@@ -62,9 +73,7 @@ No modules.
 
 | Name | Type |
 |------|------|
-| [aws_cloudwatch_event_rule.instance_change](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
 | [aws_cloudwatch_event_rule.scale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
-| [aws_cloudwatch_event_target.instance-running](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_cloudwatch_event_target.scale-out](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_cloudwatch_log_group.update_dns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_dynamodb_table.update_dns_lock](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table) | resource |
@@ -77,12 +86,12 @@ No modules.
 | [aws_lambda_function.update_dns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
 | [aws_lambda_function_event_invoke_config.update_dns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function_event_invoke_config) | resource |
 | [aws_lambda_permission.allow_cloudwatch_asg_lifecycle_hook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) | resource |
-| [aws_lambda_permission.allow_cloudwatch_instance_running](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) | resource |
 | [aws_s3_bucket.lambda_tmp](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
 | [aws_s3_bucket_public_access_block.public_access](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
 | [aws_s3_object.lambda_package](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_object) | resource |
 | [null_resource.install_python_dependencies](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [random_string.dynamodb-suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| [random_string.lch_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | [random_uuid.lamda_src_hash](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
 | [archive_file.lambda](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
@@ -98,6 +107,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_asg_name"></a> [asg\_name](#input\_asg\_name) | Autoscaling group name to assign this lambda to. | `string` | n/a | yes |
+| <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Number of days to retain logs in CloudWatch. | `number` | `365` | no |
 | <a name="input_route53_hostname"></a> [route53\_hostname](#input\_route53\_hostname) | An A record with this name will be created in the rout53 zone. Can be either a string or one of special values: \_PrivateDnsName\_, tbc. | `string` | `"_PrivateDnsName_"` | no |
 | <a name="input_route53_public_ip"></a> [route53\_public\_ip](#input\_route53\_public\_ip) | If true, create the A record with the public IP address. Otherwise, private instance IP address. | `bool` | `true` | no |
 | <a name="input_route53_ttl"></a> [route53\_ttl](#input\_route53\_ttl) | TTL in seconds on the route53 A record. | `number` | `300` | no |
@@ -108,3 +118,5 @@ No modules.
 | Name | Description |
 |------|-------------|
 | <a name="output_lambda_name"></a> [lambda\_name](#output\_lambda\_name) | Lambda function name that manages DNS records |
+| <a name="output_lifecycle_name_launching"></a> [lifecycle\_name\_launching](#output\_lifecycle\_name\_launching) | User must create a launching lifecycle hook with this name. |
+| <a name="output_lifecycle_name_terminating"></a> [lifecycle\_name\_terminating](#output\_lifecycle\_name\_terminating) | User must create a terminating lifecycle hook with this name. |

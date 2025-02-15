@@ -45,7 +45,7 @@ fmt: format
 format:  ## Use terraform fmt to format all files in the repo
 	@echo "Formatting terraform files"
 	terraform fmt -recursive
-	black tests
+	black tests update_dns/main.py
 
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
