@@ -3,11 +3,24 @@ variable "asg_name" {
   type        = string
 }
 
+variable "complete_launching_lifecycle_hook" {
+  description = "Lambda function will complete the launching lifecycle hook."
+  type        = bool
+  default     = true
+}
+
+variable "complete_terminating_lifecycle_hook" {
+  description = "Lambda function will complete the terminating lifecycle hook."
+  type        = bool
+  default     = true
+}
+
 variable "log_retention_in_days" {
   description = "Number of days to retain logs in CloudWatch."
   type        = number
   default     = 365
 }
+
 variable "route53_ttl" {
   description = "TTL in seconds on the route53 A record."
   type        = number
