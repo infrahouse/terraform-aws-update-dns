@@ -131,6 +131,8 @@ resource "aws_lambda_function" "update_dns" {
       "LOCK_TABLE_NAME" : aws_dynamodb_table.update_dns_lock.name
       "LIFECYCLE_HOOK_LAUNCHING" : local.lifecycle_hook_launching
       "LIFECYCLE_HOOK_TERMINATING" : local.lifecycle_hook_terminating
+      "COMPLETE_LAUNCHING_LIFECYCLE_HOOK" : var.complete_launching_lifecycle_hook
+      "COMPLETE_TERMINATING_LIFECYCLE_HOOK" : var.complete_terminating_lifecycle_hook
     }
   }
   depends_on = [

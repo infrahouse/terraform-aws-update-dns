@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from os import environ
@@ -91,6 +92,15 @@ def lambda_handler(event, context):
     instance_id = event["detail"]["EC2InstanceId"]
     lc_hook_name = event["detail"]["LifecycleHookName"]
     lc_transition = event["detail"]["LifecycleTransition"]
+
+    complete_lc_hook = (
+        lc_transition == "autoscaling:EC2_INSTANCE_LAUNCHING"
+        and json.loads(environ.get("COMPLETE_LAUNCHING_LIFECYCLE_HOOK"))
+    ) or (
+        lc_transition == "autoscaling:EC2_INSTANCE_TERMINATING"
+        and json.loads(environ.get("COMPLETE_TERMINATING_LIFECYCLE_HOOK"))
+    )
+
     if "LifecycleTransition" in event["detail"]:
         try:
             if (
@@ -122,13 +132,14 @@ def lambda_handler(event, context):
             LOG.exception(err)
 
         finally:
-            LOG.info(
-                f"Completing lifecycle hook {lc_hook_name} on instance {instance_id}"
-            )
-            ASG(event["detail"]["AutoScalingGroupName"]).complete_lifecycle_action(
-                hook_name=lc_hook_name,
-                result="CONTINUE",
-                instance_id=instance_id,
-            )
+            if complete_lc_hook:
+                LOG.info(
+                    f"Completing lifecycle hook {lc_hook_name} on instance {instance_id}"
+                )
+                ASG(event["detail"]["AutoScalingGroupName"]).complete_lifecycle_action(
+                    hook_name=lc_hook_name,
+                    result="CONTINUE",
+                    instance_id=instance_id,
+                )
     else:
         LOG.warning("Event is not LifecycleTransition. Skip action.")
