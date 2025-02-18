@@ -93,14 +93,6 @@ def lambda_handler(event, context):
     lc_hook_name = event["detail"]["LifecycleHookName"]
     lc_transition = event["detail"]["LifecycleTransition"]
 
-    complete_lc_hook = (
-        lc_transition == "autoscaling:EC2_INSTANCE_LAUNCHING"
-        and json.loads(environ.get("COMPLETE_LAUNCHING_LIFECYCLE_HOOK"))
-    ) or (
-        lc_transition == "autoscaling:EC2_INSTANCE_TERMINATING"
-        and json.loads(environ.get("COMPLETE_TERMINATING_LIFECYCLE_HOOK"))
-    )
-
     if "LifecycleTransition" in event["detail"]:
         try:
             if (
@@ -113,6 +105,14 @@ def lambda_handler(event, context):
                         instance_id,
                         public=public,
                     )
+                LOG.info(
+                    f"Completing lifecycle hook {lc_hook_name} on instance {instance_id}"
+                )
+                ASG(event["detail"]["AutoScalingGroupName"]).complete_lifecycle_action(
+                    hook_name=lc_hook_name,
+                    result="CONTINUE",
+                    instance_id=instance_id,
+                )
             elif (
                 lc_hook_name == environ["LIFECYCLE_HOOK_LAUNCHING"]
                 and lc_transition == "autoscaling:EC2_INSTANCE_LAUNCHING"
@@ -125,14 +125,6 @@ def lambda_handler(event, context):
                         int(environ["ROUTE53_TTL"]),
                         public=public,
                     )
-            else:
-                LOG.warning("No action for this event.")
-
-        except Exception as err:
-            LOG.exception(err)
-
-        finally:
-            if complete_lc_hook:
                 LOG.info(
                     f"Completing lifecycle hook {lc_hook_name} on instance {instance_id}"
                 )
@@ -141,5 +133,11 @@ def lambda_handler(event, context):
                     result="CONTINUE",
                     instance_id=instance_id,
                 )
+            else:
+                LOG.warning("No action for this event.")
+
+        except Exception as err:
+            LOG.exception(err)
+
     else:
         LOG.warning("Event is not LifecycleTransition. Skip action.")
