@@ -51,6 +51,11 @@ jobs:
           terraform_wrapper: false
           terraform_version: ${{ steps.terraform_version.outputs.IH_TF_VERSION }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       # Prepare Python environment
       - name: Setup Python Environment
         run: make bootstrap
