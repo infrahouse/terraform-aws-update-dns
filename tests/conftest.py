@@ -1,6 +1,6 @@
 import logging
 
-from infrahouse_toolkit.logging import setup_logging
+from infrahouse_core.logging import setup_logging
 
 # "303467602807" is our test account
 TEST_ACCOUNT = "303467602807"

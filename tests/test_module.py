@@ -1,14 +1,13 @@
 import json
 import time
 from os import path as osp
-from pprint import pformat
 from textwrap import dedent
 from time import sleep
 
 import pytest
 from infrahouse_core.aws.asg import ASG
 from infrahouse_core.aws.route53.zone import Zone
-from infrahouse_toolkit.terraform import terraform_apply
+from pytest_infrahouse import terraform_apply
 
 from tests.conftest import (
     LOG,
