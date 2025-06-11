@@ -11,6 +11,9 @@ for line in sys.stdin:
 endef
 export PRINT_HELP_PYSCRIPT
 
+TEST_REGION="us-west-2"
+TEST_ROLE="arn:aws:iam::303467602807:role/update-dns-tester"
+
 help: install-hooks
 	@python -c "$$PRINT_HELP_PYSCRIPT" < Makefile
 
@@ -25,6 +28,23 @@ install-hooks:  ## Install repo hooks
 .PHONY: test
 test:  ## Run tests on the module
 	pytest -xvvs tests/
+
+.PHONY: test-keep
+test-keep:  ## Run a test and keep resources
+	pytest -xvvs \
+		--aws-region=${TEST_REGION} \
+		--test-role-arn=${TEST_ROLE} \
+		--keep-after \
+		-k update-dns-test-1 \
+		tests/test_module.py
+
+.PHONY: test-clean
+test-clean:  ## Run a test and destroy resources
+	pytest -xvvs \
+		--aws-region=${TEST_REGION} \
+		--test-role-arn=${TEST_ROLE} \
+		-k update-dns-test-1 \
+		tests/test_module.py
 
 
 .PHONY: bootstrap
