@@ -25,6 +25,10 @@ install-hooks:  ## Install repo hooks
 	@chmod +x .git/hooks/pre-commit
 
 
+.PHONY: lint
+lint:  ## Run code style checks
+	terraform fmt --check -recursive
+
 .PHONY: test
 test:  ## Run tests on the module
 	pytest -xvvs tests/
