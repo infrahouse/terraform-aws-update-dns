@@ -64,27 +64,8 @@ def test_module(
         json_output=True,
     ) as tf_output:
         LOG.info("%s", json.dumps(tf_output, indent=4))
-        asg = ASG(tf_output["asg_name"]["value"], region=aws_region)
-        zone = Zone(zone_id=tf_output["zone_id"]["value"])
-
-        LOG.info("Wait until all refreshes are done")
-
-        while True:
-            all_done = True
-            for refresh in asg.instance_refreshes:
-                status = refresh["Status"]
-                if status not in [
-                    "Successful",
-                    "Failed",
-                    "Cancelled",
-                    "RollbackFailed",
-                    "RollbackSuccessful",
-                ]:
-                    all_done = False
-            if all_done:
-                break
-            else:
-                time.sleep(60)
+        asg = ASG(tf_output["asg_name"]["value"], region=aws_region, role_arn=test_role_arn)
+        zone = Zone(zone_id=tf_output["zone_id"]["value"], role_arn=test_role_arn)
 
         if route53_hostname == "_PrivateDnsName_":
             for instance in asg.instances:

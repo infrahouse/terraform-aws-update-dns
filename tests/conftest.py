@@ -11,4 +11,4 @@ UBUNTU_CODENAME = "jammy"
 LOG = logging.getLogger(__name__)
 TERRAFORM_ROOT_DIR = "test_data"
 
-setup_logging(LOG, debug=True)
+setup_logging(LOG)
