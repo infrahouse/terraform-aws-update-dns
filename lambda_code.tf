@@ -40,6 +40,7 @@ data "archive_file" "lambda" {
 
 resource "aws_s3_bucket" "lambda_tmp" {
   bucket_prefix = "infrahouse-asg-lambda-"
+  tags          = local.default_module_tags
 }
 
 resource "aws_s3_bucket_public_access_block" "public_access" {
@@ -54,6 +55,7 @@ resource "aws_s3_object" "lambda_package" {
   bucket = aws_s3_bucket.lambda_tmp.bucket
   key    = basename(data.archive_file.lambda.output_path)
   source = data.archive_file.lambda.output_path
+  tags   = local.default_module_tags
 }
 
 resource "aws_s3_bucket_policy" "lambda" {

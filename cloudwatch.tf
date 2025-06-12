@@ -15,6 +15,7 @@ resource "aws_cloudwatch_event_rule" "scale" {
       }
     }
   )
+  tags = local.default_module_tags
 }
 
 resource "aws_cloudwatch_event_target" "scale-out" {
@@ -25,4 +26,5 @@ resource "aws_cloudwatch_event_target" "scale-out" {
 resource "aws_cloudwatch_log_group" "update_dns" {
   name              = "/aws/lambda/${aws_lambda_function.update_dns.function_name}"
   retention_in_days = var.log_retention_in_days
+  tags              = local.default_module_tags
 }
