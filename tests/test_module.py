@@ -64,7 +64,9 @@ def test_module(
         json_output=True,
     ) as tf_output:
         LOG.info("%s", json.dumps(tf_output, indent=4))
-        asg = ASG(tf_output["asg_name"]["value"], region=aws_region, role_arn=test_role_arn)
+        asg = ASG(
+            tf_output["asg_name"]["value"], region=aws_region, role_arn=test_role_arn
+        )
         zone = Zone(zone_id=tf_output["zone_id"]["value"], role_arn=test_role_arn)
 
         if route53_hostname == "_PrivateDnsName_":
@@ -72,11 +74,15 @@ def test_module(
                 for instance in asg.instances:
                     assert instance.private_ip
                     assert instance.hostname
-                    assert zone.search_hostname(instance.hostname) == [instance.private_ip]
+                    assert zone.search_hostname(instance.hostname) == [
+                        instance.private_ip
+                    ]
 
             finally:
                 if not keep_after:
-                    LOG.info("Deleting record %s=%s", route53_hostname, instance.private_ip)
+                    LOG.info(
+                        "Deleting record %s=%s", route53_hostname, instance.private_ip
+                    )
                     zone.delete_record(instance.hostname, instance.private_ip)
         else:
             try:
