@@ -9,7 +9,9 @@ When the instance is terminated, the respective record is removed.
 * Create the update-dns module.
 ```hcl
 module "update-dns" {
-  source            = "../../"
+  source  = "infrahouse/update-dns/aws"
+  version = "0.9.1"
+
   asg_name          = local.asg_name
   route53_zone_id   = data.aws_route53_zone.cicd.zone_id
   route53_public_ip = false

@@ -83,17 +83,20 @@ resource "aws_iam_policy" "lambda_logging" {
   name_prefix = "lambda_logging"
   description = "IAM policy for logging from a lambda"
   policy      = data.aws_iam_policy_document.lambda_logging.json
+  tags        = local.default_module_tags
 }
 
 resource "aws_iam_policy" "lambda_permissions" {
   name_prefix = "lambda_permissions"
   description = "IAM policy for a lambda permissions"
   policy      = data.aws_iam_policy_document.lambda-permissions.json
+  tags        = local.default_module_tags
 }
 
 resource "aws_iam_role" "iam_for_lambda" {
   name_prefix        = "iam_for_lambda"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
+  tags               = local.default_module_tags
 }
 
 resource "aws_iam_role_policy_attachment" "AWSLambdaBasicExecutionRole" {
@@ -135,6 +138,12 @@ resource "aws_lambda_function" "update_dns" {
       "COMPLETE_TERMINATING_LIFECYCLE_HOOK" : var.complete_terminating_lifecycle_hook
     }
   }
+  tags = merge(
+    local.default_module_tags,
+    {
+      module_version : local.module_version
+    }
+  )
   depends_on = [
     data.archive_file.lambda,
     aws_s3_object.lambda_package,
