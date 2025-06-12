@@ -55,3 +55,38 @@ resource "aws_s3_object" "lambda_package" {
   key    = basename(data.archive_file.lambda.output_path)
   source = data.archive_file.lambda.output_path
 }
+
+resource "aws_s3_bucket_policy" "lambda" {
+  bucket = aws_s3_bucket.lambda_tmp.id
+  policy = data.aws_iam_policy_document.bucket_policy.json
+}
+
+data "aws_iam_policy_document" "bucket_policy" {
+  statement {
+    sid    = "AllowSSLRequestsOnly"
+    effect = "Deny"
+
+    actions = [
+      "s3:*",
+    ]
+
+    resources = [
+      aws_s3_bucket.lambda_tmp.arn,
+      "${aws_s3_bucket.lambda_tmp.arn}/*",
+    ]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values = [
+        "false"
+      ]
+    }
+  }
+
+}
