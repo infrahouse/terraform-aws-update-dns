@@ -68,23 +68,38 @@ def test_module(
         zone = Zone(zone_id=tf_output["zone_id"]["value"], role_arn=test_role_arn)
 
         if route53_hostname == "_PrivateDnsName_":
-            for instance in asg.instances:
-                assert instance.private_ip
-                assert instance.hostname
-                assert zone.search_hostname(instance.hostname) == [instance.private_ip]
+            try:
+                for instance in asg.instances:
+                    assert instance.private_ip
+                    assert instance.hostname
+                    assert zone.search_hostname(instance.hostname) == [instance.private_ip]
+
+            finally:
+                if not keep_after:
+                    LOG.info("Deleting record %s=%s", route53_hostname, instance.private_ip)
+                    zone.delete_record(instance.hostname, instance.private_ip)
         else:
-            now = time.time()
-            timeout = 60 * len(asg.instances)
-            while True:
-                if time.time() > now + timeout:
-                    raise RuntimeError(
-                        f"There is no DNS update after {timeout} seconds"
-                    )
-                try:
-                    assert sorted(zone.search_hostname(route53_hostname)) == sorted(
-                        [i.private_ip for i in asg.instances]
-                    )
-                    break
-                except AssertionError:
-                    LOG.info("Waiting 5 more seconds for DNS update")
-                    sleep(5)
+            try:
+                now = time.time()
+                timeout = 60 * len(asg.instances)
+                while True:
+                    if time.time() > now + timeout:
+                        raise RuntimeError(
+                            f"There is no DNS update after {timeout} seconds"
+                        )
+                    try:
+                        assert sorted(zone.search_hostname(route53_hostname)) == sorted(
+                            [i.private_ip for i in asg.instances]
+                        )
+                        break
+                    except AssertionError:
+                        LOG.info("Waiting 5 more seconds for DNS update")
+                        sleep(5)
+            finally:
+                # Clean up the zone, because the lambda doesn't delete DNS records
+                # when the ASG is deleted. Terraform deletes the terminating lifecycle hook
+                # and the lambda never triggers.
+                if not keep_after:
+                    for ip in zone.search_hostname(route53_hostname):
+                        LOG.info("Deleting record %s=%s", route53_hostname, ip)
+                        zone.delete_record(route53_hostname, ip)
