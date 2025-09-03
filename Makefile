@@ -53,8 +53,8 @@ test-clean:  ## Run a test and destroy resources
 
 .PHONY: bootstrap
 bootstrap: ## bootstrap the development environment
-	pip install -U "pip ~= 23.1"
-	pip install -U "setuptools ~= 68.0"
+	pip install -U "pip ~= 25.2"
+	pip install -U "setuptools ~= 80.9"
 	pip install -r requirements.txt
 
 .PHONY: clean
@@ -87,3 +87,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
+.PHONY: venv
+
+venv: ## Create local python virtual environment
+	python3 -m venv .venv
+	@echo "To activate run"
+	@echo ""
+	@echo ". .venv/bin/activate"

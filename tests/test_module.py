@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 import time
 from os import path as osp
 from textwrap import dedent
@@ -19,10 +21,14 @@ from tests.conftest import (
     "route53_hostname, asg_size",
     [("update-dns-test", 1), ("update-dns-test", 2), ("_PrivateDnsName_", 3)],
 )
+@pytest.mark.parametrize(
+    "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
+)
 def test_module(
     service_network,
     route53_hostname,
     asg_size,
+    aws_provider_version,
     keep_after,
     test_role_arn,
     aws_region,
@@ -33,6 +39,35 @@ def test_module(
     internet_gateway_id = service_network["internet_gateway_id"]["value"]
 
     terraform_module_dir = osp.join(TERRAFORM_ROOT_DIR, "update-dns")
+
+    # Clean up Terraform cache files to ensure fresh provider installation
+    try:
+        shutil.rmtree(osp.join(terraform_module_dir, ".terraform"))
+    except FileNotFoundError:
+        pass
+
+    try:
+        os.remove(osp.join(terraform_module_dir, ".terraform.lock.hcl"))
+    except FileNotFoundError:
+        pass
+
+    # Update terraform.tf with the specified AWS provider version
+    with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as tf_fp:
+        tf_fp.write(
+            dedent(
+                f"""
+                terraform {{
+                  required_providers {{
+                    aws = {{
+                      source  = "hashicorp/aws"
+                      version = "{aws_provider_version}"
+                    }}
+                  }}
+                }}
+                """
+            )
+        )
+
     with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
         fp.write(
             dedent(
