@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2025-11-13
+
+### Features
+
+- Migrate to terraform-aws-lambda-monitored module ([#29](https://github.com/infrahouse/terraform-aws-update-dns/issues/29))
+
 ## [Unreleased]
 
 ### Features
