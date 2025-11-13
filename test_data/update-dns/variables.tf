@@ -1,7 +1,10 @@
 variable "role_arn" {
   default = null
 }
-variable "test_zone" {}
+variable "route53_zone_id" {
+  description = "Route53 zone ID for testing"
+  type        = string
+}
 variable "region" {}
 
 
@@ -22,3 +25,11 @@ variable "asg_max_size" {
 }
 
 variable "route53_hostname" {}
+
+variable "alarm_emails" {
+  description = "Email addresses to receive Lambda monitoring alerts"
+  type        = list(string)
+  default = [
+    "aleks+terraform-aws-update-dns@infrahouse.com"
+  ]
+}

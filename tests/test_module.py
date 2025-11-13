@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import time
 from os import path as osp
 from textwrap import dedent
 from time import sleep
@@ -9,6 +8,7 @@ from time import sleep
 import pytest
 from infrahouse_core.aws.asg import ASG
 from infrahouse_core.aws.route53.zone import Zone
+from infrahouse_core.timeout import timeout
 from pytest_infrahouse import terraform_apply
 
 from tests.conftest import (
@@ -32,7 +32,7 @@ def test_module(
     keep_after,
     test_role_arn,
     aws_region,
-    test_zone_name,
+    subzone,
 ):
     subnet_public_ids = service_network["subnet_public_ids"]["value"]
     subnet_private_ids = service_network["subnet_private_ids"]["value"]
@@ -73,7 +73,7 @@ def test_module(
             dedent(
                 f"""
                     region = "{aws_region}"
-                    test_zone = "{test_zone_name}"
+                    route53_zone_id = "{subzone["subzone_id"]["value"]}"
 
                     subnet_public_ids = {json.dumps(subnet_public_ids)}
                     subnet_private_ids = {json.dumps(subnet_private_ids)}
@@ -81,6 +81,7 @@ def test_module(
                     route53_hostname = "{route53_hostname}"
                     asg_min_size = {asg_size}
                     asg_max_size = {asg_size}
+                    alarm_emails = ["test@example.com"]
                     """
             )
         )
@@ -121,21 +122,16 @@ def test_module(
                     zone.delete_record(instance.hostname, instance.private_ip)
         else:
             try:
-                now = time.time()
-                timeout = 60 * len(asg.instances)
-                while True:
-                    if time.time() > now + timeout:
-                        raise RuntimeError(
-                            f"There is no DNS update after {timeout} seconds"
-                        )
-                    try:
-                        assert sorted(zone.search_hostname(route53_hostname)) == sorted(
-                            [i.private_ip for i in asg.instances]
-                        )
-                        break
-                    except AssertionError:
-                        LOG.info("Waiting 5 more seconds for DNS update")
-                        sleep(5)
+                with timeout(seconds=60 * len(asg.instances)):
+                    while True:
+                        try:
+                            assert sorted(zone.search_hostname(route53_hostname)) == sorted(
+                                [i.private_ip for i in asg.instances]
+                            )
+                            break
+                        except AssertionError:
+                            LOG.info("Waiting 5 more seconds for DNS update")
+                            sleep(5)
             finally:
                 # Clean up the zone, because the lambda doesn't delete DNS records
                 # when the ASG is deleted. Terraform deletes the terminating lifecycle hook

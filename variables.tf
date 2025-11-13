@@ -42,3 +42,18 @@ variable "route53_hostname" {
   type        = string
   default     = "_PrivateDnsName_"
 }
+
+variable "alarm_emails" {
+  description = "Email addresses to receive Lambda monitoring alerts from CloudWatch alarms."
+  type        = list(string)
+}
+
+variable "alert_strategy" {
+  description = "Alert strategy for CloudWatch alarms: 'immediate' (alert on first error) or 'threshold' (alert after multiple errors)."
+  type        = string
+  default     = "immediate"
+  validation {
+    condition     = contains(["immediate", "threshold"], var.alert_strategy)
+    error_message = "Alert strategy must be either 'immediate' or 'threshold'."
+  }
+}
