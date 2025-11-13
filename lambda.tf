@@ -91,11 +91,6 @@ resource "aws_iam_role_policy_attachment" "lambda_permissions" {
   policy_arn = aws_iam_policy.lambda_permissions.arn
 }
 
-resource "aws_lambda_function_event_invoke_config" "update_dns" {
-  function_name          = module.update_dns_lambda.lambda_function_name
-  maximum_retry_attempts = 0
-}
-
 resource "aws_lambda_permission" "allow_cloudwatch_asg_lifecycle_hook" {
   action        = "lambda:InvokeFunction"
   function_name = module.update_dns_lambda.lambda_function_name

@@ -89,7 +89,7 @@ policy = jsonencode({...})  # Keep existing policy
 3.1 Remove custom Lambda deployment ✅
 Delete these resources:
 - ✅ aws_lambda_function.update_dns (lambda.tf) - replaced with module
-- ✅ aws_lambda_function_event_invoke_config.update_dns_config (lambda.tf) - kept, updated to use module
+- ✅ aws_lambda_function_event_invoke_config.update_dns (lambda.tf) - removed, module already manages this (fixes ResourceConflictException)
 - ✅ aws_cloudwatch_log_group.update_dns (cloudwatch.tf) - removed, module handles this
 
 3.2 Remove custom packaging infrastructure ✅
