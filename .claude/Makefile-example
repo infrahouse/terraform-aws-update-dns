@@ -12,8 +12,8 @@ endef
 export PRINT_HELP_PYSCRIPT
 
 TEST_REGION="us-west-2"
-TEST_ROLE="arn:aws:iam::303467602807:role/update-dns-tester"
-TEST_SELECTOR="update-dns-test-1 and aws-6"
+TEST_ROLE="arn:aws:iam::303467602807:role/openvpn-tester"
+TEST_SELECTOR="aws6"
 
 help: install-hooks
 	@python -c "$$PRINT_HELP_PYSCRIPT" < Makefile
@@ -26,10 +26,6 @@ install-hooks:  ## Install repo hooks
 	@chmod +x .git/hooks/pre-commit
 
 
-.PHONY: lint
-lint:  ## Run code style checks
-	terraform fmt --check -recursive
-
 .PHONY: test
 test:  ## Run tests on the module
 	pytest -xvvs tests/
@@ -39,20 +35,23 @@ test-keep:  ## Run a test and keep resources
 	pytest -xvvs \
 		--aws-region=${TEST_REGION} \
 		--test-role-arn=${TEST_ROLE} \
+		-k $(TEST_SELECTOR) \
 		--keep-after \
-		-k ${TEST_SELECTOR} \
-		tests/test_module.py \
-		2>&1 | tee pytest-`date +%Y%m%d-%H%M%S`-output.log
+		tests/test_module.py 2>&1 | tee pytest-$(shell date +%Y%m%d-%H%M%S)-output.log
 
 .PHONY: test-clean
 test-clean:  ## Run a test and destroy resources
 	pytest -xvvs \
 		--aws-region=${TEST_REGION} \
 		--test-role-arn=${TEST_ROLE} \
-		-k ${TEST_SELECTOR} \
-		tests/test_module.py \
-		2>&1 | tee pytest-`date +%Y%m%d-%H%M%S`-output.log
+		-k $(TEST_SELECTOR) \
+		tests/test_module.py 2>&1 | tee pytest-$(shell date +%Y%m%d-%H%M%S)-output.log
 
+.PHONY: lint
+lint:  ## Check code style
+	yamllint \
+		.github/workflows
+	terraform fmt -check -recursive
 
 .PHONY: bootstrap
 bootstrap: ## bootstrap the development environment
@@ -64,37 +63,6 @@ bootstrap: ## bootstrap the development environment
 clean: ## clean the repo from cruft
 	rm -rf .pytest_cache
 	find . -name '.terraform' -exec rm -fr {} +
-	rm -f pytest-*-output.log
-
-# Internal target for creating releases - do not call directly
-.PHONY: _release
-_release:
-	@test -n "$(BUMP)" || (echo "Error: BUMP variable must be set" && exit 1)
-	@echo "Checking if on main branch..."
-	@git branch --show-current | grep -q "^main$$" || (echo "Error: Must be on main branch to release" && exit 1)
-	@echo "Calculating version..."
-	$(eval NEW_VERSION := $(shell git cliff --bumped-version --bump $(BUMP)))
-	@echo "New version will be: $(NEW_VERSION)"
-	@echo "Updating CHANGELOG.md..."
-	@git cliff --unreleased --tag $(NEW_VERSION) --prepend CHANGELOG.md
-	@echo "Committing CHANGELOG..."
-	@git add CHANGELOG.md
-	@git commit -m "Update CHANGELOG for $(NEW_VERSION)"
-	@echo "Creating tag $(NEW_VERSION)..."
-	@git tag $(NEW_VERSION)
-	@echo "Release $(NEW_VERSION) created. Push with: git push && git push --tags"
-
-.PHONY: release-patch
-release-patch: ## Release a patch version (x.x.PATCH)
-	@$(MAKE) _release BUMP=patch
-
-.PHONY: release-minor
-release-minor: ## Release a minor version (x.MINOR.0)
-	@$(MAKE) _release BUMP=minor
-
-.PHONY: release-major
-release-major: ## Release a major version (MAJOR.0.0)
-	@$(MAKE) _release BUMP=major
 
 .PHONY: fmt
 fmt: format
@@ -103,7 +71,7 @@ fmt: format
 format:  ## Use terraform fmt to format all files in the repo
 	@echo "Formatting terraform files"
 	terraform fmt -recursive
-	black tests update_dns/main.py
+	black tests portal
 
 define BROWSER_PYSCRIPT
 import os, webbrowser, sys
@@ -121,10 +89,3 @@ docs: ## generate Sphinx HTML documentation, including API docs
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
-.PHONY: venv
-
-venv: ## Create local python virtual environment
-	python3 -m venv .venv
-	@echo "To activate run"
-	@echo ""
-	@echo ". .venv/bin/activate"

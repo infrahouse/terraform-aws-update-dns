@@ -1,5 +1,4 @@
 /.idea/
-.claude
 terraform.tfstate*
 .terraform.lock.hcl
 .terraform
@@ -7,3 +6,4 @@ __pycache__
 *.zip
 terraform.tfvars
 .terraform.tfstate.lock.info
+pytest-*-output.log
