@@ -8,13 +8,13 @@ from time import sleep
 import pytest
 from infrahouse_core.aws.asg import ASG
 from infrahouse_core.aws.route53.zone import Zone
+from infrahouse_core.timeout import timeout
 from pytest_infrahouse import terraform_apply
 
 from tests.conftest import (
     LOG,
     TERRAFORM_ROOT_DIR,
 )
-from update_dns.infrahouse_core.timeout import timeout
 
 
 @pytest.mark.parametrize(
