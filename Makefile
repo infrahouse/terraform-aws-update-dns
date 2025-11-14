@@ -11,9 +11,9 @@ for line in sys.stdin:
 endef
 export PRINT_HELP_PYSCRIPT
 
-TEST_REGION="us-west-2"
-TEST_ROLE="arn:aws:iam::303467602807:role/update-dns-tester"
-TEST_SELECTOR="update-dns-test-1 and aws-6"
+TEST_REGION ?= "us-west-2"
+TEST_ROLE ?= "arn:aws:iam::303467602807:role/update-dns-tester"
+TEST_SELECTOR ?= "update-dns-test-1 and aws-6"
 
 help: install-hooks
 	@python -c "$$PRINT_HELP_PYSCRIPT" < Makefile
@@ -40,7 +40,7 @@ test-keep:  ## Run a test and keep resources
 		--aws-region=${TEST_REGION} \
 		--test-role-arn=${TEST_ROLE} \
 		--keep-after \
-		-k ${TEST_SELECTOR} \
+		-k "${TEST_SELECTOR}" \
 		tests/test_module.py \
 		2>&1 | tee pytest-`date +%Y%m%d-%H%M%S`-output.log
 
@@ -49,7 +49,7 @@ test-clean:  ## Run a test and destroy resources
 	pytest -xvvs \
 		--aws-region=${TEST_REGION} \
 		--test-role-arn=${TEST_ROLE} \
-		-k ${TEST_SELECTOR} \
+		-k "${TEST_SELECTOR}" \
 		tests/test_module.py \
 		2>&1 | tee pytest-`date +%Y%m%d-%H%M%S`-output.log
 

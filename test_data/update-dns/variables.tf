@@ -8,8 +8,17 @@ variable "route53_zone_id" {
 variable "region" {}
 
 
-variable "subnet_public_ids" {}
-variable "subnet_private_ids" {}
+variable "subnet_ids" {
+  description = "Subnet IDs for ASG (public or private based on test requirements)"
+  type        = list(string)
+}
+
+variable "route53_public_ip" {
+  description = "Use public IP for Route53 records"
+  type        = bool
+  default     = false
+}
+
 variable "internet_gateway_id" {}
 
 variable "asg_min_size" {
