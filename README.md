@@ -10,7 +10,7 @@ When the instance is terminated, the respective record is removed.
 ```hcl
 module "update-dns" {
   source  = "infrahouse/update-dns/aws"
-  version = "1.0.0"
+  version = "1.0.1"
 
   asg_name          = local.asg_name
   route53_zone_id   = data.aws_route53_zone.cicd.zone_id
