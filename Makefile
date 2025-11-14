@@ -70,6 +70,29 @@ clean: ## clean the repo from cruft
 .PHONY: _release
 _release:
 	@test -n "$(BUMP)" || (echo "Error: BUMP variable must be set" && exit 1)
+	@echo "Checking if git-cliff is installed..."
+	@command -v git-cliff >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "Error: git-cliff is not installed."; \
+		echo ""; \
+		echo "Please install it using one of the following methods:"; \
+		echo ""; \
+		echo "  Cargo (Rust):"; \
+		echo "    cargo install git-cliff"; \
+		echo ""; \
+		echo "  Arch Linux:"; \
+		echo "    pacman -S git-cliff"; \
+		echo ""; \
+		echo "  Homebrew (macOS/Linux):"; \
+		echo "    brew install git-cliff"; \
+		echo ""; \
+		echo "  From binary (Linux/macOS/Windows):"; \
+		echo "    https://github.com/orhun/git-cliff/releases"; \
+		echo ""; \
+		echo "For more installation options, see: https://git-cliff.org/docs/installation"; \
+		echo ""; \
+		exit 1; \
+	}
 	@echo "Checking if on main branch..."
 	@git branch --show-current | grep -q "^main$$" || (echo "Error: Must be on main branch to release" && exit 1)
 	@echo "Calculating version..."
