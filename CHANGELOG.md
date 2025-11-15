@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- Add support for _PublicDnsName_ special value in route53_hostname variable
+  - Automatically generates hostnames based on instance public IP (e.g., ip-80-90-1-1 for IP 80.90.1.1)
+  - Works alongside existing _PrivateDnsName_ special value
+  - Automatically uses public subnets and public IPs when _PublicDnsName_ is specified
 - Migrate to terraform-aws-lambda-monitored module
 - Add CloudWatch alarms for Lambda errors, throttles, and duration
 - Add SNS topic for Lambda monitoring alerts

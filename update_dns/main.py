@@ -68,11 +68,19 @@ def get_instance_ip(instance_id, public: bool = True):
 
 
 def resolve_hostname(instance_id):
-    if environ["ROUTE53_HOSTNAME"] == "_PrivateDnsName_":
+    route53_hostname = environ["ROUTE53_HOSTNAME"]
+
+    if route53_hostname == "_PrivateDnsName_":
         instance = EC2Instance(instance_id)
         return instance.tags["Name"] if instance.hostname is None else instance.hostname
 
-    return environ["ROUTE53_HOSTNAME"]
+    elif route53_hostname == "_PublicDnsName_":
+        instance = EC2Instance(instance_id)
+        public_ip = instance.public_ip
+        # Convert IP like 80.90.1.1 to hostname like ip-80-90-1-1
+        return f"ip-{public_ip.replace('.', '-')}"
+
+    return route53_hostname
 
 
 def lambda_handler(event, context):
