@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2025-11-15
+
+### Features
+
+- Add _PublicDnsName_ special value for route53_hostname ([#32](https://github.com/infrahouse/terraform-aws-update-dns/issues/32))
+
+### Miscellaneous Tasks
+
+- Update dependency python to 3.14 ([#31](https://github.com/infrahouse/terraform-aws-update-dns/issues/31))
+
 ## [1.0.1] - 2025-11-14
 
 ### Refactor
