@@ -59,12 +59,22 @@ def remove_record(zone_id, instance_id, public: bool = True):
 
 
 def get_instance_ip(instance_id, public: bool = True):
-    """Get the instance's public or private IP address by its instance_id"""
+    """Get the instance's public or private IP address by its instance_id.
+
+    During instance termination, the IP address may be None (released).
+    In that case, fall back to the IP stored in instance tags.
+    """
     instance = EC2Instance(instance_id=instance_id)
     try:
-        return instance.public_ip if public else instance.private_ip
+        ip = instance.public_ip if public else instance.private_ip
+        # If IP is None (e.g., during termination), fall back to tags
+        if ip is not None:
+            return ip
     except KeyError:
-        return instance.tags["PublicIpAddress" if public else "PrivateIpAddress"]
+        pass  # Fall through to tag lookup
+
+    # Fallback: retrieve IP from instance tags
+    return instance.tags["PublicIpAddress" if public else "PrivateIpAddress"]
 
 
 def resolve_hostname(instance_id):

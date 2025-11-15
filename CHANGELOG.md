@@ -45,6 +45,10 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
+- Fix DNS records not being deleted when instances are terminated
+  - The `get_instance_ip()` function now properly falls back to instance tags when the IP address is `None` during instance termination
+  - Resolves issue where orphaned DNS records remained in Route53 after manual instance termination
+  - Adds integration test `test_dns_record_deletion_on_manual_termination` to verify proper DNS cleanup
 - Update test suite to use pytest-infrahouse subzone fixture
 - Replace test_zone data source lookup with direct zone_id variable
 

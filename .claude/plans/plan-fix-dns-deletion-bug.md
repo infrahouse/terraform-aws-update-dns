@@ -55,18 +55,21 @@ When this instance later **terminates**, the `get_instance_ip()` function would:
 ## Implementation Steps
 
 ### 1. Write Integration Test (Real Infrastructure, No Mocking)
-**File**: `tests/test_dns_deletion_on_refresh.py`
+**File**: `tests/test_module.py` - Add new test `test_dns_record_deletion_on_manual_termination`
 
-**Goal**: Verify that DNS records are properly deleted during instance refresh when instances are terminated
+**Goal**: Verify that DNS records are properly deleted when instances are manually terminated and the public IP is released
 
 **Test Strategy**:
 Create a real integration test that:
 1. Creates ASG with Lambda using `_PublicDnsName_` for `route53_hostname`
 2. Waits for initial instance to launch and DNS record to be created
-3. Initiates an instance refresh to force instance replacement
-4. Waits for instance refresh to complete
-5. Verifies that old DNS record is deleted and new one is created
+3. **Manually terminates the instance** using EC2 API (not ASG instance refresh)
+4. Waits for lifecycle hook to complete
+5. Verifies that the DNS record is deleted even though `instance.public_ip` returns `None`
 6. No mocking - uses real AWS infrastructure
+
+**Why Manual Termination:**
+This reproduces the actual bug - when you manually terminate an instance, the public IP is released quickly, causing `instance.public_ip` to return `None`. The Lambda must fall back to the IP stored in tags to successfully delete the DNS record.
 
 **New Test File**: `tests/test_dns_deletion_on_refresh.py`
 
@@ -302,10 +305,23 @@ def test_dns_record_deletion_on_instance_refresh(
 ### 2. Run Test - Verify Failure
 **Command**:
 ```bash
-pytest tests/test_dns_deletion_on_refresh.py -v -s
+TEST_SELECTOR="test_dns_record_deletion_on_manual_termination and aws-6" make test-keep
 ```
 
-**Expected Result**: Test should FAIL at Step 7, where the old DNS record is not deleted because `get_instance_ip()` returns `None` during instance termination
+**Expected Result**: Test should FAIL with assertion error showing DNS record still exists
+
+**Actual Result**: ✅ Test FAILED as expected
+```
+AssertionError: DNS record ip-54-191-245-245 still exists with IPs: ['54.191.245.245'].
+Lambda failed to delete the record (likely due to instance_ip being None).
+```
+
+**CloudWatch Logs Confirmed**:
+```
+[INFO]    instance_ip = None
+[INFO]    hostname = 'ip-54-191-245-245'
+[WARNING] Could not find A record in zone ... with hostname ip-54-191-245-245 and IP address None.
+```
 
 ### 3. Implement Fix
 **File**: `update_dns/main.py`
@@ -353,10 +369,19 @@ def get_instance_ip(instance_id, public: bool = True):
 ### 4. Run Integration Test - Verify Success
 **Command**:
 ```bash
-pytest tests/test_dns_deletion_on_refresh.py -v -s
+TEST_SELECTOR="test_dns_record_deletion_on_manual_termination and aws-6" make test-keep
 ```
 
-**Expected Result**: Test should PASS, verifying that DNS records are properly deleted during instance refresh
+**Expected Result**: Test should PASS, verifying that DNS records are properly deleted
+
+**Actual Result**: ✅ Test PASSED
+```
+INFO: DNS record ip-16-145-92-224 successfully deleted
+PASSED
+================= 1 passed, 9 deselected in 210.76s (0:03:30) ==================
+```
+
+**Fix Verified**: The Lambda now successfully retrieves the IP from tags when `instance.public_ip` is `None`, allowing proper DNS record deletion during manual instance termination.
 
 ### 5. Run All Integration Tests
 **Command**:
