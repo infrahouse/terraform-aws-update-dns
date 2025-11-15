@@ -1,6 +1,6 @@
 locals {
   module         = "infrahouse/update-dns/aws"
-  module_version = "1.0.1"
+  module_version = "1.1.0"
 
   default_module_tags = merge(
     {
