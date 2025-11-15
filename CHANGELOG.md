@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2025-11-15
+
+### Bug Fixes
+
+- DNS records not deleted on instance termination ([#33](https://github.com/infrahouse/terraform-aws-update-dns/issues/33))
+
 ## [1.1.0] - 2025-11-15
 
 ### Features
