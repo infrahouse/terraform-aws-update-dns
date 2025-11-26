@@ -38,7 +38,12 @@ variable "route53_public_ip" {
 }
 
 variable "route53_hostname" {
-  description = "An A record with this name will be created in the route53 zone. Can be either a string or one of special values: _PrivateDnsName_ (creates ip-10-1-1-1 based on private IP), _PublicDnsName_ (creates ip-80-90-1-1 based on public IP)."
+  description = <<-EOT
+    An A record with this name will be created in the route53 zone.
+    Can be either a string or one of special values:
+    - _PrivateDnsName_ (creates ip-10-1-1-1 based on private IP)
+    - _PublicDnsName_ (creates ip-80-90-1-1 based on public IP)
+  EOT
   type        = string
   default     = "_PrivateDnsName_"
 }
