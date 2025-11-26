@@ -48,6 +48,36 @@ variable "route53_hostname" {
   default     = "_PrivateDnsName_"
 }
 
+variable "route53_hostname_prefixes" {
+  description = <<-EOT
+    List of prefixes to use when creating DNS records.
+    Each prefix will create a separate DNS A record pointing to the same IP.
+
+    Examples:
+    - ["ip"] (default): Creates ip-a-b-c-d
+    - ["ip", "api"]: Creates ip-a-b-c-d and api-a-b-c-d
+    - ["web", "app"]: Creates web-a-b-c-d and app-a-b-c-d
+
+    Only used when route53_hostname is set to _PrivateDnsName_ or _PublicDnsName_.
+    Ignored when route53_hostname is a custom string.
+  EOT
+  type        = list(string)
+  default     = ["ip"]
+
+  validation {
+    condition     = length(var.route53_hostname_prefixes) > 0
+    error_message = "route53_hostname_prefixes must contain at least one prefix."
+  }
+
+  validation {
+    condition = alltrue([
+      for prefix in var.route53_hostname_prefixes :
+      can(regex("^[a-z0-9-]+$", prefix))
+    ])
+    error_message = "Each prefix must contain only lowercase letters, numbers, and hyphens."
+  }
+}
+
 variable "alarm_emails" {
   description = "Email addresses to receive Lambda monitoring alerts from CloudWatch alarms."
   type        = list(string)

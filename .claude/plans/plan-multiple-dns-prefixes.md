@@ -28,7 +28,7 @@ When the instance is terminated, **both records should be deleted**.
 
 ## Implementation Steps
 
-### 1. Define Input Variable
+### 1. Define Input Variable ✅ COMPLETE
 **File**: `variables.tf`
 
 **Add new variable** (after `route53_hostname`):
@@ -71,8 +71,8 @@ variable "route53_hostname_prefixes" {
 - Validation enforces DNS-safe characters
 - Only applies when using auto-generated names (`_PrivateDnsName_` or `_PublicDnsName_`)
 
-### 2. Pass Variable to Lambda
-**File**: `main.tf`
+### 2. Pass Variable to Lambda ✅ COMPLETE
+**File**: `lambda.tf`
 
 **Modify**: Update the `lambda_environment_variables` local (around line ~50)
 
@@ -108,7 +108,7 @@ locals {
 - Lambda will parse this back to a Python list
 - Environment variables only support strings
 
-### 3. Write Integration Test (TDD Approach)
+### 3. Write Integration Test (TDD Approach) ✅ COMPLETE
 **File**: `tests/test_module.py`
 
 **Add new test function**:
@@ -293,7 +293,7 @@ def test_multiple_dns_prefixes(
 6. Verifies BOTH records are deleted
 7. No mocking - uses real AWS infrastructure
 
-### 4. Run Test - Verify Failure (TDD)
+### 4. Run Test - Verify Failure (TDD) ✅ COMPLETE
 **Command**:
 ```bash
 pytest tests/test_module.py::test_multiple_dns_prefixes -v -k "aws-6"
@@ -308,7 +308,7 @@ pytest tests/test_module.py::test_multiple_dns_prefixes -v -k "aws-6"
 
 **Success Criteria for This Step**: Test fails with clear error indicating feature is missing
 
-### 5. Implement Lambda Feature
+### 5. Implement Lambda Feature ✅ COMPLETE
 
 #### 5.1 Update Lambda to Parse Prefixes List
 **File**: `update_dns/main.py`
@@ -555,7 +555,7 @@ elif lifecycle_transition == "autoscaling:EC2_INSTANCE_TERMINATING":
 - Call `delete_records()` instead of `delete_record()`
 - All existing logic remains the same
 
-### 6. Run Test - Verify Success
+### 6. Run Test - Verify Success ✅ COMPLETE
 **Command**:
 ```bash
 pytest tests/test_module.py::test_multiple_dns_prefixes -v -k "aws-6"
@@ -590,7 +590,7 @@ pytest tests/test_module.py -v
 2. Verify default value `["ip"]` is correctly applied
 3. Check CloudWatch logs for Lambda errors
 
-### 8. Update Terraform Outputs (Optional)
+### 8. Update Terraform Outputs (Optional) ✅ COMPLETE
 **File**: `outputs.tf`
 
 **Consider adding** (optional enhancement):
@@ -606,7 +606,7 @@ output "route53_hostname_prefixes" {
 - Useful for debugging
 - Optional - can be added in a follow-up
 
-### 9. Update Documentation
+### 9. Update Documentation ✅ COMPLETE
 
 #### 9.1 Update README.md - Variables Table
 **File**: `README.md`

@@ -387,3 +387,176 @@ def test_dns_record_deletion_on_manual_termination(
         except IHRecordNotFound:
             # This is the expected result - record was successfully deleted
             LOG.info(f"DNS record {target_hostname} successfully deleted")
+
+
+@pytest.mark.parametrize(
+    "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
+)
+def test_multiple_dns_prefixes(
+    service_network,
+    aws_provider_version,
+    keep_after,
+    test_role_arn,
+    aws_region,
+    subzone,
+    boto3_session,
+):
+    """
+    Test that multiple DNS records with different prefixes are created
+    for the same instance IP, and all are deleted on termination.
+
+    This test verifies:
+    1. Multiple DNS records are created with different prefixes (ip, api)
+    2. All records point to the same IP address
+    3. All records are deleted when instance is terminated
+    """
+    subnet_public_ids = service_network["subnet_public_ids"]["value"]
+    internet_gateway_id = service_network["internet_gateway_id"]["value"]
+
+    terraform_module_dir = osp.join(TERRAFORM_ROOT_DIR, "update-dns")
+
+    # Clean up Terraform cache files
+    try:
+        shutil.rmtree(osp.join(terraform_module_dir, ".terraform"))
+    except FileNotFoundError:
+        pass
+
+    try:
+        os.remove(osp.join(terraform_module_dir, ".terraform.lock.hcl"))
+    except FileNotFoundError:
+        pass
+
+    # Update terraform.tf with the specified AWS provider version
+    with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as tf_fp:
+        tf_fp.write(
+            dedent(
+                f"""
+                terraform {{
+                  required_providers {{
+                    aws = {{
+                      source  = "hashicorp/aws"
+                      version = "{aws_provider_version}"
+                    }}
+                  }}
+                }}
+                """
+            )
+        )
+
+    # Use _PublicDnsName_ to test public IP scenarios with multiple prefixes
+    route53_hostname = "_PublicDnsName_"
+    route53_hostname_prefixes = ["ip", "api"]
+    asg_size = 1
+
+    with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
+        fp.write(
+            dedent(
+                f"""
+                    region = "{aws_region}"
+                    route53_zone_id = "{subzone["subzone_id"]["value"]}"
+
+                    subnet_ids = {json.dumps(subnet_public_ids)}
+                    internet_gateway_id = "{internet_gateway_id}"
+                    route53_hostname = "{route53_hostname}"
+                    route53_hostname_prefixes = {json.dumps(route53_hostname_prefixes)}
+                    route53_public_ip = true
+                    asg_min_size = {asg_size}
+                    asg_max_size = {asg_size}
+                    alarm_emails = ["test@example.com"]
+                    """
+            )
+        )
+        if test_role_arn:
+            fp.write(
+                dedent(
+                    f"""
+                    role_arn      = "{test_role_arn}"
+                    """
+                )
+            )
+
+    with terraform_apply(
+        terraform_module_dir,
+        destroy_after=not keep_after,
+        json_output=True,
+    ) as tf_output:
+        LOG.info("%s", json.dumps(tf_output, indent=4))
+        asg = ASG(
+            tf_output["asg_name"]["value"], region=aws_region, role_arn=test_role_arn
+        )
+        zone = Zone(zone_id=tf_output["zone_id"]["value"], role_arn=test_role_arn)
+        ec2_client = boto3_session.client("ec2", region_name=aws_region)
+
+        # Step 1: Wait for instance to have public IP
+        LOG.info("Waiting for instance to have public IP...")
+        with timeout(seconds=300):
+            while True:
+                if len(asg.instances) == 0:
+                    LOG.info("No instances yet, waiting...")
+                    sleep(10)
+                    continue
+
+                instance = asg.instances[0]
+                if instance.public_ip is None:
+                    LOG.info(f"Instance {instance.instance_id} doesn't have public IP yet, waiting...")
+                    sleep(10)
+                    continue
+
+                LOG.info(f"Instance {instance.instance_id} has public IP: {instance.public_ip}")
+                break
+
+        # Step 2: Verify BOTH DNS records were created
+        instance = asg.instances[0]
+        public_ip = instance.public_ip
+        instance_id = instance.instance_id
+
+        # Expected hostnames with different prefixes
+        expected_hostnames = [
+            f"ip-{public_ip.replace('.', '-')}",
+            f"api-{public_ip.replace('.', '-')}"
+        ]
+
+        LOG.info(f"Verifying multiple DNS records for IP {public_ip}")
+        for hostname in expected_hostnames:
+            LOG.info(f"Checking DNS record: {hostname} -> {public_ip}")
+            with timeout(seconds=120):
+                while True:
+                    dns_ips = zone.search_hostname(hostname)
+                    if dns_ips == [public_ip]:
+                        LOG.info(f"✓ DNS record verified: {hostname} -> {public_ip}")
+                        break
+                    LOG.info(f"Waiting for DNS record {hostname}... Current: {dns_ips}")
+                    sleep(5)
+
+        # Step 3: Manually terminate the instance (triggers Lambda deletion)
+        LOG.info(f"Manually terminating instance {instance_id}...")
+        ec2_client.terminate_instances(InstanceIds=[instance_id])
+        LOG.info(f"Termination initiated for {instance_id}")
+
+        # Step 4: Wait for instance to be removed from ASG (lifecycle hook processed)
+        LOG.info(f"Waiting for instance {instance_id} to be removed from ASG...")
+        with timeout(seconds=600):
+            while True:
+                current_instance_ids = [i.instance_id for i in asg.instances]
+                if instance_id not in current_instance_ids:
+                    LOG.info(f"Instance {instance_id} removed from ASG")
+                    break
+                LOG.info(f"Instance {instance_id} still in ASG, waiting...")
+                sleep(5)
+
+        # Step 5: Verify ALL DNS records were deleted
+        LOG.info("Verifying all DNS records were deleted...")
+        for hostname in expected_hostnames:
+            LOG.info(f"Checking deletion of: {hostname}")
+            try:
+                dns_ips = zone.search_hostname(hostname)
+                # If we get here, record still exists - feature not implemented!
+                raise AssertionError(
+                    f"DNS record {hostname} still exists with IPs: {dns_ips}. "
+                    f"Multiple prefix feature not yet implemented."
+                )
+            except IHRecordNotFound:
+                # This is the expected result - record was successfully deleted
+                LOG.info(f"✓ DNS record {hostname} successfully deleted")
+
+        LOG.info("✓ All DNS records with multiple prefixes successfully created and deleted")

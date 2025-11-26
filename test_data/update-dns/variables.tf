@@ -35,6 +35,12 @@ variable "asg_max_size" {
 
 variable "route53_hostname" {}
 
+variable "route53_hostname_prefixes" {
+  description = "List of DNS hostname prefixes for testing"
+  type        = list(string)
+  default     = ["ip"]
+}
+
 variable "alarm_emails" {
   description = "Email addresses to receive Lambda monitoring alerts"
   type        = list(string)
