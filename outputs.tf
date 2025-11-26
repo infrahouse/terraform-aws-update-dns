@@ -36,3 +36,8 @@ output "lifecycle_name_terminating" {
   description = "User must create a terminating lifecycle hook with this name."
   value       = local.lifecycle_hook_terminating
 }
+
+output "route53_hostname_prefixes" {
+  description = "List of DNS hostname prefixes configured for the module"
+  value       = var.route53_hostname_prefixes
+}

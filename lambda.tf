@@ -68,6 +68,7 @@ module "update_dns_lambda" {
     ROUTE53_ZONE_ID                     = var.route53_zone_id
     ROUTE53_ZONE_NAME                   = data.aws_route53_zone.asg_zone.name
     ROUTE53_HOSTNAME                    = var.route53_hostname
+    ROUTE53_HOSTNAME_PREFIXES           = jsonencode(var.route53_hostname_prefixes)
     ROUTE53_TTL                         = tostring(var.route53_ttl)
     ROUTE53_PUBLIC_IP                   = tostring(var.route53_public_ip)
     ASG_NAME                            = var.asg_name

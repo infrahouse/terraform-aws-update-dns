@@ -57,6 +57,34 @@ resource "aws_autoscaling_lifecycle_hook" "terminating" {
 
 ```
 
+### Multiple DNS Records Per Instance
+
+You can create multiple DNS records with different prefixes for the same instance using the `route53_hostname_prefixes` variable:
+
+```hcl
+module "update-dns" {
+  source  = "infrahouse/update-dns/aws"
+  version = "1.1.1"
+
+  asg_name                   = local.asg_name
+  route53_zone_id            = data.aws_route53_zone.cicd.zone_id
+  route53_hostname           = "_PublicDnsName_"  # Required for prefixes
+  route53_hostname_prefixes  = ["ip", "api", "web"]
+  route53_public_ip          = true
+  alarm_emails               = ["ops-team@example.com"]
+}
+```
+
+This configuration will create three DNS records for each instance. For example, if an instance gets IP `54.183.154.109`, the following records are created:
+- `ip-54-183-154-109.example.com` → `54.183.154.109`
+- `api-54-183-154-109.example.com` → `54.183.154.109`
+- `web-54-183-154-109.example.com` → `54.183.154.109`
+
+When the instance terminates, all three records are automatically deleted.
+
+**Note**: The `route53_hostname_prefixes` variable only works with `_PrivateDnsName_` or `_PublicDnsName_`.
+When using a custom hostname string, prefixes are ignored and only that exact hostname is used.
+
 ## Monitoring
 
 This module includes built-in CloudWatch monitoring and alerting via the [terraform-aws-lambda-monitored](https://registry.terraform.io/modules/infrahouse/lambda-monitored/aws) module.
@@ -106,7 +134,7 @@ The module exposes monitoring-related outputs:
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_update_dns_lambda"></a> [update\_dns\_lambda](#module\_update\_dns\_lambda) | infrahouse/lambda-monitored/aws | 1.0.3 |
+| <a name="module_update_dns_lambda"></a> [update\_dns\_lambda](#module\_update\_dns\_lambda) | registry.infrahouse.com/infrahouse/lambda-monitored/aws | 1.0.4 |
 
 ## Resources
 
@@ -117,7 +145,6 @@ The module exposes monitoring-related outputs:
 | [aws_dynamodb_table.update_dns_lock](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table) | resource |
 | [aws_iam_policy.lambda_permissions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_role_policy_attachment.lambda_permissions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
-| [aws_lambda_function_event_invoke_config.update_dns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function_event_invoke_config) | resource |
 | [aws_lambda_permission.allow_cloudwatch_asg_lifecycle_hook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) | resource |
 | [random_string.dynamodb-suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 | [random_string.lch_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
@@ -136,7 +163,8 @@ The module exposes monitoring-related outputs:
 | <a name="input_complete_launching_lifecycle_hook"></a> [complete\_launching\_lifecycle\_hook](#input\_complete\_launching\_lifecycle\_hook) | Lambda function will complete the launching lifecycle hook. | `bool` | `true` | no |
 | <a name="input_complete_terminating_lifecycle_hook"></a> [complete\_terminating\_lifecycle\_hook](#input\_complete\_terminating\_lifecycle\_hook) | Lambda function will complete the terminating lifecycle hook. | `bool` | `true` | no |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Number of days to retain logs in CloudWatch. | `number` | `365` | no |
-| <a name="input_route53_hostname"></a> [route53\_hostname](#input\_route53\_hostname) | An A record with this name will be created in the rout53 zone. Can be either a string or one of special values: \_PrivateDnsName\_, tbc. | `string` | `"_PrivateDnsName_"` | no |
+| <a name="input_route53_hostname"></a> [route53\_hostname](#input\_route53\_hostname) | An A record with this name will be created in the route53 zone.<br/>Can be either a string or one of special values:<br/>- _PrivateDnsName_ (creates ip-10-1-1-1 based on private IP)<br/>- _PublicDnsName_ (creates ip-80-90-1-1 based on public IP) | `string` | `"_PrivateDnsName_"` | no |
+| <a name="input_route53_hostname_prefixes"></a> [route53\_hostname\_prefixes](#input\_route53\_hostname\_prefixes) | List of prefixes to use when creating DNS records.<br/>Each prefix will create a separate DNS A record pointing to the same IP.<br/><br/>Examples:<br/>- ["ip"] (default): Creates ip-a-b-c-d<br/>- ["ip", "api"]: Creates ip-a-b-c-d and api-a-b-c-d<br/>- ["web", "app"]: Creates web-a-b-c-d and app-a-b-c-d<br/><br/>Only used when route53\_hostname is set to _PrivateDnsName_ or \_PublicDnsName\_.<br/>Ignored when route53\_hostname is a custom string. | `list(string)` | <pre>[<br/>  "ip"<br/>]</pre> | no |
 | <a name="input_route53_public_ip"></a> [route53\_public\_ip](#input\_route53\_public\_ip) | If true, create the A record with the public IP address. Otherwise, private instance IP address. | `bool` | `true` | no |
 | <a name="input_route53_ttl"></a> [route53\_ttl](#input\_route53\_ttl) | TTL in seconds on the route53 A record. | `number` | `300` | no |
 | <a name="input_route53_zone_id"></a> [route53\_zone\_id](#input\_route53\_zone\_id) | Route53 zone id of a zone where A record will be created. | `any` | n/a | yes |
@@ -151,5 +179,6 @@ The module exposes monitoring-related outputs:
 | <a name="output_lambda_role_name"></a> [lambda\_role\_name](#output\_lambda\_role\_name) | IAM role name for the Lambda function |
 | <a name="output_lifecycle_name_launching"></a> [lifecycle\_name\_launching](#output\_lifecycle\_name\_launching) | User must create a launching lifecycle hook with this name. |
 | <a name="output_lifecycle_name_terminating"></a> [lifecycle\_name\_terminating](#output\_lifecycle\_name\_terminating) | User must create a terminating lifecycle hook with this name. |
+| <a name="output_route53_hostname_prefixes"></a> [route53\_hostname\_prefixes](#output\_route53\_hostname\_prefixes) | List of DNS hostname prefixes configured for the module |
 | <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | ARN of SNS topic for Lambda monitoring alerts |
 <!-- END_TF_DOCS -->
