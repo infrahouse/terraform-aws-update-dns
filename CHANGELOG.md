@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2025-11-26
+
+### Features
+
+- Add route53_hostname_prefixes for multiple DNS records per instance ([#36](https://github.com/infrahouse/terraform-aws-update-dns/issues/36))
+
 ## [1.2.0] - 2025-11-25
 
 ### Features
