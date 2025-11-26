@@ -164,17 +164,16 @@ def resolve_hostnames(instance_id):
 
     if route53_hostname == "_PrivateDnsName_":
         instance = EC2Instance(instance_id)
-        base_hostname = (
-            instance.tags["Name"] if instance.hostname is None else instance.hostname
-        )
-        # For PrivateDnsName, AWS already provides the full hostname, just return it
-        # wrapped in a list (prefixes don't apply to AWS-provided hostnames)
-        return [base_hostname]
+        private_ip = instance.private_ip
+        # Convert IP like 10.1.1.1 to hostname like ip-10-1-1-1, api-10-1-1-1
+        ip_formatted = private_ip.replace(".", "-")
+        # Create one hostname per prefix
+        return [f"{prefix}-{ip_formatted}" for prefix in ROUTE53_HOSTNAME_PREFIXES]
 
     elif route53_hostname == "_PublicDnsName_":
         instance = EC2Instance(instance_id)
         public_ip = instance.public_ip
-        # Convert IP like 80.90.1.1 to hostname like ip-80-90-1-1
+        # Convert IP like 80.90.1.1 to hostname like ip-80-90-1-1, api-80-90-1-1
         ip_formatted = public_ip.replace(".", "-")
         # Create one hostname per prefix
         return [f"{prefix}-{ip_formatted}" for prefix in ROUTE53_HOSTNAME_PREFIXES]

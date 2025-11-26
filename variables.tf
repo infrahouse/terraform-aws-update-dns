@@ -72,9 +72,14 @@ variable "route53_hostname_prefixes" {
   validation {
     condition = alltrue([
       for prefix in var.route53_hostname_prefixes :
-      can(regex("^[a-z0-9-]+$", prefix))
+      can(regex("^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$|^[a-z0-9]$", prefix))
     ])
-    error_message = "Each prefix must contain only lowercase letters, numbers, and hyphens."
+    error_message = "Each prefix must start and end with alphanumeric character, contain only lowercase letters, numbers, and hyphens, and be 1-63 characters long."
+  }
+
+  validation {
+    condition     = length(var.route53_hostname_prefixes) == length(distinct(var.route53_hostname_prefixes))
+    error_message = "route53_hostname_prefixes must contain unique values. Duplicates are not allowed."
   }
 }
 

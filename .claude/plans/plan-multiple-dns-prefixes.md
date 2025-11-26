@@ -58,9 +58,14 @@ variable "route53_hostname_prefixes" {
   validation {
     condition = alltrue([
       for prefix in var.route53_hostname_prefixes :
-      can(regex("^[a-z0-9-]+$", prefix))
+      can(regex("^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$|^[a-z0-9]$", prefix))
     ])
-    error_message = "Each prefix must contain only lowercase letters, numbers, and hyphens."
+    error_message = "Each prefix must start and end with alphanumeric character, contain only lowercase letters, numbers, and hyphens, and be 1-63 characters long."
+  }
+
+  validation {
+    condition     = length(var.route53_hostname_prefixes) == length(distinct(var.route53_hostname_prefixes))
+    error_message = "route53_hostname_prefixes must contain unique values. Duplicates are not allowed."
   }
 }
 ```
@@ -761,20 +766,21 @@ module "update-dns" {
    - **Mitigation**: Validation rule prevents empty lists
    - **Error**: Terraform validation fails at plan time
 
-2. **Invalid prefix characters**
-   - **Risk**: User passes prefix with invalid DNS characters
-   - **Mitigation**: Validation rule enforces `^[a-z0-9-]+$`
+2. **Invalid prefix characters** ✅ MITIGATED
+   - **Risk**: User passes prefix with invalid DNS characters, leading/trailing hyphens, or excessive length
+   - **Mitigation**: Validation rule enforces DNS label standards: `^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$|^[a-z0-9]$`
    - **Error**: Terraform validation fails at plan time
+   - **Prevents**: Hyphens at start/end, non-alphanumeric chars, labels >63 chars
 
 3. **Too many prefixes**
    - **Risk**: User passes 100+ prefixes, causing Lambda timeout
    - **Mitigation**: Could add validation for max length (e.g., 10)
    - **Future enhancement**: Add `max_length` validation
 
-4. **Duplicate prefixes**
+4. **Duplicate prefixes** ✅ MITIGATED
    - **Risk**: User passes `["ip", "ip"]`
-   - **Behavior**: Two identical records created (harmless but wasteful)
-   - **Future enhancement**: Add validation for uniqueness
+   - **Mitigation**: Validation rule prevents duplicate prefixes
+   - **Error**: Terraform validation fails at plan time
 
 5. **Custom hostname with prefixes**
    - **Risk**: User sets both custom `route53_hostname` and `route53_hostname_prefixes`
@@ -838,7 +844,7 @@ This feature enables creating multiple DNS records with different prefixes for t
 ## Follow-up Considerations
 
 1. **Add validation for max prefixes** (e.g., limit to 10)
-2. **Add validation for unique prefixes** (prevent duplicates)
+2. ~~**Add validation for unique prefixes** (prevent duplicates)~~ ✅ IMPLEMENTED
 3. **Add CloudWatch metric** for number of records per instance
 4. **Consider batch operations** if Route53 rate limits become an issue
 5. **Add warning log** when prefixes used with custom hostname

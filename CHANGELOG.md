@@ -9,13 +9,16 @@ All notable changes to this project will be documented in this file.
 - Add route53_hostname_prefixes variable to create multiple DNS records with different prefixes for the same instance IP ([#TBD](https://github.com/infrahouse/terraform-aws-update-dns/issues/TBD))
   - Useful for creating multiple service names (e.g., "ip", "api", "web") pointing to the same instance
   - Default: `["ip"]` maintains 100% backward compatibility
-  - Only applies when using `_PrivateDnsName_` or `_PublicDnsName_`
+  - Applies consistently to both `_PrivateDnsName_` and `_PublicDnsName_`
   - All records are automatically deleted when instance terminates
 
 ### Changed
 
 - Lambda function now supports creating and deleting multiple DNS records per instance
 - Add route53_hostname_prefixes output to verify configuration
+- Update resolve_hostnames() to apply prefixes consistently for both private and public IPs
+- Add validation to prevent duplicate prefixes in route53_hostname_prefixes
+- Enhance prefix validation to comply with DNS label standards (no leading/trailing hyphens, max 63 chars)
 
 ## [1.1.1] - 2025-11-15
 
