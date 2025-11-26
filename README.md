@@ -10,7 +10,7 @@ When the instance is terminated, the respective record is removed.
 ```hcl
 module "update-dns" {
   source  = "infrahouse/update-dns/aws"
-  version = "1.1.1"
+  version = "1.2.0"
 
   asg_name          = local.asg_name
   route53_zone_id   = data.aws_route53_zone.cicd.zone_id
@@ -64,7 +64,7 @@ You can create multiple DNS records with different prefixes for the same instanc
 ```hcl
 module "update-dns" {
   source  = "infrahouse/update-dns/aws"
-  version = "1.1.1"
+  version = "1.2.0"
 
   asg_name                   = local.asg_name
   route53_zone_id            = data.aws_route53_zone.cicd.zone_id
