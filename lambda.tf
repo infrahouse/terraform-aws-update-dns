@@ -52,12 +52,15 @@ module "update_dns_lambda" {
   source  = "registry.infrahouse.com/infrahouse/lambda-monitored/aws"
   version = "1.0.4"
 
-  function_name                 = "update-dns-${var.asg_name}"
-  lambda_source_dir             = "${path.module}/update_dns"
-  requirements_file             = "${path.module}/update_dns/requirements.txt"
-  python_version                = "python3.12"
-  architecture                  = "x86_64"
-  timeout                       = 60
+  function_name     = "update-dns-${var.asg_name}"
+  lambda_source_dir = "${path.module}/update_dns"
+  requirements_file = "${path.module}/update_dns/requirements.txt"
+  python_version    = "python3.12"
+  architecture      = "x86_64"
+  timeout           = local.lambda_timeout
+  # 512 MB provides ~60% headroom over observed ~200 MB usage,
+  # ensuring stability under memory variance and GC spikes
+  memory_size                   = 512
   handler                       = "main.lambda_handler"
   cloudwatch_log_retention_days = var.log_retention_in_days
 
@@ -73,6 +76,7 @@ module "update_dns_lambda" {
     ROUTE53_PUBLIC_IP                   = tostring(var.route53_public_ip)
     ASG_NAME                            = var.asg_name
     LOCK_TABLE_NAME                     = aws_dynamodb_table.update_dns_lock.name
+    LOCK_TTL                            = tostring(local.lambda_timeout)
     LIFECYCLE_HOOK_LAUNCHING            = local.lifecycle_hook_launching
     LIFECYCLE_HOOK_TERMINATING          = local.lifecycle_hook_terminating
     COMPLETE_LAUNCHING_LIFECYCLE_HOOK   = tostring(var.complete_launching_lifecycle_hook)

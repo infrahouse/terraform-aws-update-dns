@@ -137,7 +137,9 @@ def test_module(
         # Step 2: Wait for instances to be ready with expected properties
         if route53_hostname == "_PublicDnsName_":
             LOG.info("Waiting for instances to have public IPs...")
-            with timeout(seconds=300):  # 5 minute timeout for instances to get public IPs
+            with timeout(
+                seconds=300
+            ):  # 5 minute timeout for instances to get public IPs
                 while True:
                     instances_ready = True
                     for instance in asg.instances:
@@ -218,13 +220,13 @@ def test_module(
     "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
 )
 def test_dns_record_deletion_on_manual_termination(
-        service_network,
-        aws_provider_version,
-        keep_after,
-        test_role_arn,
-        aws_region,
-        subzone,
-        boto3_session,
+    service_network,
+    aws_provider_version,
+    keep_after,
+    test_role_arn,
+    aws_region,
+    subzone,
+    boto3_session,
 ):
     """
     Test that DNS records are properly deleted when instances are manually terminated.
@@ -297,9 +299,9 @@ def test_dns_record_deletion_on_manual_termination(
             )
 
     with terraform_apply(
-            terraform_module_dir,
-            destroy_after=not keep_after,
-            json_output=True,
+        terraform_module_dir,
+        destroy_after=not keep_after,
+        json_output=True,
     ) as tf_output:
         LOG.info("%s", json.dumps(tf_output, indent=4))
         asg = ASG(
@@ -308,7 +310,7 @@ def test_dns_record_deletion_on_manual_termination(
         zone = Zone(zone_id=tf_output["zone_id"]["value"], role_arn=test_role_arn)
 
         # Create EC2 client using boto3_session
-        ec2_client = boto3_session.client('ec2', region_name=aws_region)
+        ec2_client = boto3_session.client("ec2", region_name=aws_region)
 
         # Step 1: Wait for initial instance refresh to complete
         LOG.info("Waiting for initial instance refresh to complete...")
@@ -320,7 +322,9 @@ def test_dns_record_deletion_on_manual_termination(
                 if not active_refreshes:
                     LOG.info("No active instance refreshes")
                     break
-                LOG.info(f"Waiting for {len(active_refreshes)} instance refresh(es) to complete...")
+                LOG.info(
+                    f"Waiting for {len(active_refreshes)} instance refresh(es) to complete..."
+                )
                 sleep(10)
 
         # Step 2: Wait for instance to have public IP
@@ -334,11 +338,15 @@ def test_dns_record_deletion_on_manual_termination(
 
                 instance = asg.instances[0]
                 if instance.public_ip is None:
-                    LOG.info(f"Instance {instance.instance_id} doesn't have public IP yet, waiting...")
+                    LOG.info(
+                        f"Instance {instance.instance_id} doesn't have public IP yet, waiting..."
+                    )
                     sleep(10)
                     continue
 
-                LOG.info(f"Instance {instance.instance_id} has public IP: {instance.public_ip}")
+                LOG.info(
+                    f"Instance {instance.instance_id} has public IP: {instance.public_ip}"
+                )
                 break
 
         # Step 3: Verify DNS record was created
@@ -352,7 +360,9 @@ def test_dns_record_deletion_on_manual_termination(
             while True:
                 dns_ips = zone.search_hostname(target_hostname)
                 if dns_ips == [target_public_ip]:
-                    LOG.info(f"DNS record verified: {target_hostname} -> {target_public_ip}")
+                    LOG.info(
+                        f"DNS record verified: {target_hostname} -> {target_public_ip}"
+                    )
                     break
                 LOG.info(f"Waiting for DNS record to be created... Current: {dns_ips}")
                 sleep(5)
@@ -364,7 +374,9 @@ def test_dns_record_deletion_on_manual_termination(
 
         # Step 4a: Wait for instance to disappear from ASG (lifecycle hook processed)
         LOG.info(f"Waiting for instance {target_instance_id} to be removed from ASG...")
-        with timeout(seconds=600):  # 10 minutes for ASG detection, lifecycle hook, and connection draining
+        with timeout(
+            seconds=600
+        ):  # 10 minutes for ASG detection, lifecycle hook, and connection draining
             while True:
                 current_instance_ids = [i.instance_id for i in asg.instances]
                 if target_instance_id not in current_instance_ids:
@@ -498,11 +510,15 @@ def test_multiple_dns_prefixes(
 
                 instance = asg.instances[0]
                 if instance.public_ip is None:
-                    LOG.info(f"Instance {instance.instance_id} doesn't have public IP yet, waiting...")
+                    LOG.info(
+                        f"Instance {instance.instance_id} doesn't have public IP yet, waiting..."
+                    )
                     sleep(10)
                     continue
 
-                LOG.info(f"Instance {instance.instance_id} has public IP: {instance.public_ip}")
+                LOG.info(
+                    f"Instance {instance.instance_id} has public IP: {instance.public_ip}"
+                )
                 break
 
         # Step 2: Verify BOTH DNS records were created
@@ -513,7 +529,7 @@ def test_multiple_dns_prefixes(
         # Expected hostnames with different prefixes
         expected_hostnames = [
             f"ip-{public_ip.replace('.', '-')}",
-            f"api-{public_ip.replace('.', '-')}"
+            f"api-{public_ip.replace('.', '-')}",
         ]
 
         LOG.info(f"Verifying multiple DNS records for IP {public_ip}")
@@ -559,4 +575,6 @@ def test_multiple_dns_prefixes(
                 # This is the expected result - record was successfully deleted
                 LOG.info(f"✓ DNS record {hostname} successfully deleted")
 
-        LOG.info("✓ All DNS records with multiple prefixes successfully created and deleted")
+        LOG.info(
+            "✓ All DNS records with multiple prefixes successfully created and deleted"
+        )

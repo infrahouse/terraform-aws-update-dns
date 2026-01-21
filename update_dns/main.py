@@ -47,9 +47,12 @@ def add_records(
     assert hostnames
     assert len(hostnames) > 0
 
+    # Create EC2Instance once and reuse it
+    instance = EC2Instance(instance_id=instance_id)
+
     zone = Zone(zone_id=zone_id)
     LOG.info(f"{zone.zone_name = }")
-    instance_ip = get_instance_ip(instance_id, public=public)
+    instance_ip = get_instance_ip(instance, public=public)
     LOG.info(f"{instance_ip = }")
 
     # Create multiple DNS records for the same IP
@@ -57,12 +60,10 @@ def add_records(
         LOG.info(f"Creating DNS record: {hostname} -> {instance_ip}")
         zone.add_record(hostname, instance_ip, ttl=ttl)
 
-    instance = EC2Instance(instance_id=instance_id)
+    LOG.info("DNS records created, now adding instance tags...")
     instance.add_tag("PublicIpAddress" if public else "PrivateIpAddress", instance_ip)
-    instance.add_tag(
-        "Name",
-        resolve_hostname(instance_id),
-    )
+    # Use first hostname directly instead of re-resolving (saves memory/API calls)
+    instance.add_tag("Name", hostnames[0])
     # Store first hostname for backward compatibility, but also store all hostnames
     instance.add_tag("update-dns:hostname", hostnames[0])
     instance.add_tag("update-dns:hostnames", json.dumps(hostnames))
@@ -81,8 +82,9 @@ def remove_records(zone_id, instance_id, public: bool = True):
     assert instance_id
     assert zone_id
 
+    # Create EC2Instance once and reuse it
     instance = EC2Instance(instance_id=instance_id)
-    instance_ip = get_instance_ip(instance_id, public=public)
+    instance_ip = get_instance_ip(instance, public=public)
     LOG.info(f"{instance_ip = }")
 
     # Try to get hostnames from the new tag first, fall back to old tag
@@ -122,13 +124,12 @@ def remove_records(zone_id, instance_id, public: bool = True):
         raise Exception(f"Failed to delete all {len(hostnames)} DNS records")
 
 
-def get_instance_ip(instance_id, public: bool = True):
-    """Get the instance's public or private IP address by its instance_id.
+def get_instance_ip(instance: EC2Instance, public: bool = True):
+    """Get the instance's public or private IP address.
 
     During instance termination, the IP address may be None (released).
     In that case, fall back to the IP stored in instance tags.
     """
-    instance = EC2Instance(instance_id=instance_id)
     try:
         ip = instance.public_ip if public else instance.private_ip
         # If IP is None (e.g., during termination), fall back to tags
@@ -206,7 +207,10 @@ def lambda_handler(event, context):
                 lc_hook_name == environ["LIFECYCLE_HOOK_TERMINATING"]
                 and lc_transition == "autoscaling:EC2_INSTANCE_TERMINATING"
             ):
-                with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock("update-dns"):
+                lock_ttl = int(os.getenv("LOCK_TTL", "60"))
+                with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock(
+                    "update-dns", ttl=lock_ttl
+                ):
                     remove_record(
                         environ["ROUTE53_ZONE_ID"],
                         instance_id,
@@ -224,7 +228,10 @@ def lambda_handler(event, context):
                 lc_hook_name == environ["LIFECYCLE_HOOK_LAUNCHING"]
                 and lc_transition == "autoscaling:EC2_INSTANCE_LAUNCHING"
             ):
-                with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock("update-dns"):
+                lock_ttl = int(os.getenv("LOCK_TTL", "60"))
+                with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock(
+                    "update-dns", ttl=lock_ttl
+                ):
                     add_records(
                         environ["ROUTE53_ZONE_ID"],
                         resolve_hostnames(instance_id),
