@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-01-22
+
+### Bug Fixes
+
+- Optimize Lambda memory usage and add lock TTL for graceful failures
+
+### Miscellaneous Tasks
+
+- Update actions/checkout action to v6 ([#35](https://github.com/infrahouse/terraform-aws-update-dns/issues/35))
+- Update actions/github-script action to v8 ([#37](https://github.com/infrahouse/terraform-aws-update-dns/issues/37))
+
 ## [1.2.0] - 2025-11-26
 
 ### Features
