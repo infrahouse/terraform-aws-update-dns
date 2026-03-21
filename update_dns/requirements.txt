@@ -1,1 +1,1 @@
-infrahouse-core == 0.20.0
+infrahouse-core ==0.26.1
