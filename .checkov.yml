@@ -1,0 +1,22 @@
+framework:
+  - terraform
+
+directory:
+  - .
+
+skip-path:
+  - .terraform
+  - .venv
+  - test_data
+  - examples
+
+skip-check:
+  # Lock table is ephemeral -- no user data, backups not needed
+  - CKV_AWS_28
+  # Lock table holds only lock keys, no sensitive data to encrypt
+  - CKV_AWS_119
+  # We use exact version pinning via registry, not commit hashes
+  - CKV_TF_1
+
+compact: true
+quiet: true
