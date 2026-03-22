@@ -1,117 +1,133 @@
 # terraform-aws-update-dns
 
-The module updates Route53 to create an A record in a zone for instances in an autoscaling group.
-When the instance is terminated, the respective record is removed.
+[![Need Help?](https://img.shields.io/badge/Need%20Help%3F-Contact%20Us-0066CC)](https://infrahouse.com/contact)
+[![Docs](https://img.shields.io/badge/docs-github.io-blue)](https://infrahouse.github.io/terraform-aws-update-dns/)
+[![Registry](https://img.shields.io/badge/Terraform-Registry-purple?logo=terraform)](https://registry.terraform.io/modules/infrahouse/update-dns/aws/latest)
+[![Release](https://img.shields.io/github/release/infrahouse/terraform-aws-update-dns.svg)](https://github.com/infrahouse/terraform-aws-update-dns/releases/latest)
+[![AWS Route 53](https://img.shields.io/badge/AWS-Route%2053-orange?logo=amazonroute53)](https://aws.amazon.com/route53/)
+[![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-orange?logo=awslambda)](https://aws.amazon.com/lambda/)
+[![Security](https://img.shields.io/github/actions/workflow/status/infrahouse/terraform-aws-update-dns/vuln-scanner-pr.yml?label=Security)](https://github.com/infrahouse/terraform-aws-update-dns/actions/workflows/vuln-scanner-pr.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-## Usage
+This Terraform module automatically manages Route53 DNS A records for EC2 instances
+in an Auto Scaling Group. A Lambda function responds to ASG lifecycle hook events
+via CloudWatch EventBridge, creating DNS records on instance launch and deleting
+them on termination.
 
-* Chose autoscaling group name. It must be known before we create the autoscaling group or the update-dns module.
-* Create the update-dns module.
+## Why This Module?
+
+Some services running on EC2 instances in an Auto Scaling Group need a stable,
+predictable DNS name for each node -- not just a load balancer endpoint.
+The most common reason is **TLS certificates**: if a node needs its own
+certificate (e.g., for inter-node encryption in an Elasticsearch cluster),
+the certificate's Subject Alternative Name must match a resolvable hostname.
+An ephemeral IP address won't work.
+
+For example, [terraform-aws-elasticsearch](https://github.com/infrahouse/terraform-aws-elasticsearch)
+uses this module to give every node a DNS name like `ip-10-1-2-3.example.com`.
+Puppet on the node then requests a TLS certificate for that FQDN and configures
+Elasticsearch's transport layer (`xpack.security.transport.ssl`) to use it.
+Without a known hostname, inter-node TLS verification would fail.
+
+Another use case is **poor man's load balancing**: set `route53_hostname` to a
+fixed string like `"api"` and every instance in the ASG gets an A record with
+the same name. Route53 returns all IPs in round-robin order, giving you
+DNS-based load balancing with zero extra infrastructure -- no ALB required.
+
+Other use cases include cluster node discovery (nodes find peers by DNS name
+rather than hard-coded IPs) and direct SSH/debugging access to specific
+instances behind an ASG.
+
+This module solves the problem natively within AWS:
+
+- **Zero external dependencies** -- uses only AWS services
+  (Lambda, EventBridge, Route53, DynamoDB)
+- **Lifecycle-hook driven** -- DNS records are created before the instance
+  enters service and cleaned up on termination
+- **Concurrency safe** -- DynamoDB-based locking prevents race conditions
+  during rapid scale events
+- **Multiple DNS records per instance** -- create several prefixed records
+  (e.g., `ip-`, `api-`, `web-`) pointing to the same instance
+- **Built-in monitoring** -- Lambda errors, throttles, and duration are
+  monitored via CloudWatch alarms with SNS notifications
+
+## Features
+
+- Automatic DNS A record creation on instance launch
+- Automatic DNS record cleanup on instance termination
+- Support for private or public IP addresses
+- Support for custom hostnames or auto-generated names from IP
+- Multiple DNS record prefixes per instance
+- DynamoDB-based concurrency locking
+- CloudWatch monitoring with configurable alert strategies
+- Compatible with AWS provider v5 and v6
+
+## Quick Start
+
 ```hcl
+# 1. Choose an ASG name upfront
+locals {
+  asg_name = "my-web-servers"
+}
+
+# 2. Create the update-dns module
 module "update-dns" {
-  source  = "infrahouse/update-dns/aws"
+  source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
   version = "1.2.1"
 
-  asg_name          = local.asg_name
-  route53_zone_id   = data.aws_route53_zone.cicd.zone_id
-  route53_public_ip = false
-  route53_hostname  = var.route53_hostname
-
-  # Monitoring configuration (required)
-  alarm_emails      = ["ops-team@example.com"]
-
-  # Optional: Alert strategy (defaults to "immediate")
-  # alert_strategy    = "threshold"  # Use "threshold" for alerts after multiple errors
+  asg_name        = local.asg_name
+  route53_zone_id = data.aws_route53_zone.my_zone.zone_id
+  alarm_emails    = ["ops-team@example.com"]
 }
-```
-* Create the autoscaling group. In the autoscaling group, create the initial lifecycle hook. It is needed to ensure the DNS records are created for the first instances in the ASG.
-```hcl
-resource "aws_autoscaling_group" "website" {
-  name                = local.asg_name
-...
+
+# 3. Create the ASG with the initial lifecycle hook
+resource "aws_autoscaling_group" "web" {
+  name = local.asg_name
+  # ... other configuration ...
+
   initial_lifecycle_hook {
     lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
     name                 = module.update-dns.lifecycle_name_launching
   }
-  depends_on = [
-    module.update-dns
-  ]
-}
-```
-* Create lifecycle launching and terminating hook. Note the lifecycle names. They are semi-random and should be taken from the update-dns module outputs.
 
-```hcl
+  depends_on = [module.update-dns]
+}
+
+# 4. Create lifecycle hooks for ongoing events
 resource "aws_autoscaling_lifecycle_hook" "launching" {
-  autoscaling_group_name = aws_autoscaling_group.website.name
+  autoscaling_group_name = aws_autoscaling_group.web.name
   lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
   name                   = module.update-dns.lifecycle_name_launching
   heartbeat_timeout      = 3600
 }
 
 resource "aws_autoscaling_lifecycle_hook" "terminating" {
-  autoscaling_group_name = aws_autoscaling_group.website.name
+  autoscaling_group_name = aws_autoscaling_group.web.name
   lifecycle_transition   = "autoscaling:EC2_INSTANCE_TERMINATING"
   name                   = module.update-dns.lifecycle_name_terminating
   heartbeat_timeout      = 3600
 }
-
 ```
 
-### Multiple DNS Records Per Instance
+## Documentation
 
-You can create multiple DNS records with different prefixes for the same instance using the `route53_hostname_prefixes` variable:
+- [Getting Started](https://infrahouse.github.io/terraform-aws-update-dns/getting-started/)
+  -- Prerequisites and first deployment
+- [Architecture](https://infrahouse.github.io/terraform-aws-update-dns/architecture/)
+  -- How the module works
+- [Configuration](https://infrahouse.github.io/terraform-aws-update-dns/configuration/)
+  -- All variables explained
+- [Examples](https://infrahouse.github.io/terraform-aws-update-dns/examples/)
+  -- Common use cases
+- [Troubleshooting](https://infrahouse.github.io/terraform-aws-update-dns/troubleshooting/)
+  -- Common issues and solutions
 
-```hcl
-module "update-dns" {
-  source  = "infrahouse/update-dns/aws"
-  version = "1.2.1"
+## Examples
 
-  asg_name                   = local.asg_name
-  route53_zone_id            = data.aws_route53_zone.cicd.zone_id
-  route53_hostname           = "_PublicDnsName_"  # Required for prefixes
-  route53_hostname_prefixes  = ["ip", "api", "web"]
-  route53_public_ip          = true
-  alarm_emails               = ["ops-team@example.com"]
-}
-```
+See the [`examples/`](examples/) directory for working configurations:
 
-This configuration will create three DNS records for each instance. For example, if an instance gets IP `54.183.154.109`, the following records are created:
-- `ip-54-183-154-109.example.com` → `54.183.154.109`
-- `api-54-183-154-109.example.com` → `54.183.154.109`
-- `web-54-183-154-109.example.com` → `54.183.154.109`
-
-When the instance terminates, all three records are automatically deleted.
-
-**Note**: The `route53_hostname_prefixes` variable only works with `_PrivateDnsName_` or `_PublicDnsName_`.
-When using a custom hostname string, prefixes are ignored and only that exact hostname is used.
-
-## Monitoring
-
-This module includes built-in CloudWatch monitoring and alerting via the [terraform-aws-lambda-monitored](https://registry.terraform.io/modules/infrahouse/lambda-monitored/aws) module.
-
-### CloudWatch Alarms
-
-The following alarms are automatically created:
-- **Error Alarm**: Triggered when Lambda function errors occur
-- **Throttle Alarm**: Triggered when Lambda function is throttled
-- **Duration Alarm**: Triggered when function execution exceeds timeout threshold
-
-### Alert Strategy
-
-You can configure the alert strategy using the `alert_strategy` variable:
-- **`immediate`** (default): Alert on first error occurrence
-- **`threshold`**: Alert only after multiple errors (more suitable for production environments with expected transient failures)
-
-### SNS Notifications
-
-All alarm notifications are sent to the email addresses specified in `alarm_emails`. You'll need to confirm the SNS subscription via email after the first deployment.
-
-### Monitoring Outputs
-
-The module exposes monitoring-related outputs:
-- `cloudwatch_alarm_arns`: Map of alarm ARNs (error, throttle, duration)
-- `sns_topic_arn`: ARN of the SNS topic for alerts
-- `lambda_role_name`: IAM role name for attaching additional policies
+- [`examples/basic/`](examples/basic/) -- Basic single-hostname setup
+- [`examples/multi-prefix/`](examples/multi-prefix/) -- Multiple DNS prefixes per instance
 
 <!-- BEGIN_TF_DOCS -->
 
@@ -182,3 +198,11 @@ The module exposes monitoring-related outputs:
 | <a name="output_route53_hostname_prefixes"></a> [route53\_hostname\_prefixes](#output\_route53\_hostname\_prefixes) | List of DNS hostname prefixes configured for the module |
 | <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | ARN of SNS topic for Lambda monitoring alerts |
 <!-- END_TF_DOCS -->
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[Apache 2.0](LICENSE)

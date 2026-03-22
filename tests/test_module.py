@@ -59,9 +59,7 @@ def test_module(
 
     # Update terraform.tf with the specified AWS provider version
     with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as tf_fp:
-        tf_fp.write(
-            dedent(
-                f"""
+        tf_fp.write(dedent(f"""
                 terraform {{
                   required_providers {{
                     aws = {{
@@ -70,9 +68,7 @@ def test_module(
                     }}
                   }}
                 }}
-                """
-            )
-        )
+                """))
 
     # Determine which subnets to use based on hostname
     subnet_ids = (
@@ -83,9 +79,7 @@ def test_module(
     route53_public_ip = True if route53_hostname == "_PublicDnsName_" else False
 
     with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
-        fp.write(
-            dedent(
-                f"""
+        fp.write(dedent(f"""
                     region = "{aws_region}"
                     route53_zone_id = "{subzone["subzone_id"]["value"]}"
 
@@ -96,17 +90,11 @@ def test_module(
                     asg_min_size = {asg_size}
                     asg_max_size = {asg_size}
                     alarm_emails = ["test@example.com"]
-                    """
-            )
-        )
+                    """))
         if test_role_arn:
-            fp.write(
-                dedent(
-                    f"""
+            fp.write(dedent(f"""
                     role_arn      = "{test_role_arn}"
-                    """
-                )
-            )
+                    """))
 
     with terraform_apply(
         terraform_module_dir,
@@ -253,9 +241,7 @@ def test_dns_record_deletion_on_manual_termination(
 
     # Update terraform.tf with the specified AWS provider version
     with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as tf_fp:
-        tf_fp.write(
-            dedent(
-                f"""
+        tf_fp.write(dedent(f"""
                 terraform {{
                   required_providers {{
                     aws = {{
@@ -264,18 +250,14 @@ def test_dns_record_deletion_on_manual_termination(
                     }}
                   }}
                 }}
-                """
-            )
-        )
+                """))
 
     # Use _PublicDnsName_ to test public IP scenarios
     route53_hostname = "_PublicDnsName_"
     asg_size = 1
 
     with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
-        fp.write(
-            dedent(
-                f"""
+        fp.write(dedent(f"""
                     region = "{aws_region}"
                     route53_zone_id = "{subzone["subzone_id"]["value"]}"
 
@@ -286,17 +268,11 @@ def test_dns_record_deletion_on_manual_termination(
                     asg_min_size = {asg_size}
                     asg_max_size = {asg_size}
                     alarm_emails = ["test@example.com"]
-                    """
-            )
-        )
+                    """))
         if test_role_arn:
-            fp.write(
-                dedent(
-                    f"""
+            fp.write(dedent(f"""
                     role_arn      = "{test_role_arn}"
-                    """
-                )
-            )
+                    """))
 
     with terraform_apply(
         terraform_module_dir,
@@ -440,9 +416,7 @@ def test_multiple_dns_prefixes(
 
     # Update terraform.tf with the specified AWS provider version
     with open(osp.join(terraform_module_dir, "terraform.tf"), "w") as tf_fp:
-        tf_fp.write(
-            dedent(
-                f"""
+        tf_fp.write(dedent(f"""
                 terraform {{
                   required_providers {{
                     aws = {{
@@ -451,9 +425,7 @@ def test_multiple_dns_prefixes(
                     }}
                   }}
                 }}
-                """
-            )
-        )
+                """))
 
     # Use _PublicDnsName_ to test public IP scenarios with multiple prefixes
     route53_hostname = "_PublicDnsName_"
@@ -461,9 +433,7 @@ def test_multiple_dns_prefixes(
     asg_size = 1
 
     with open(osp.join(terraform_module_dir, "terraform.tfvars"), "w") as fp:
-        fp.write(
-            dedent(
-                f"""
+        fp.write(dedent(f"""
                     region = "{aws_region}"
                     route53_zone_id = "{subzone["subzone_id"]["value"]}"
 
@@ -475,17 +445,11 @@ def test_multiple_dns_prefixes(
                     asg_min_size = {asg_size}
                     asg_max_size = {asg_size}
                     alarm_emails = ["test@example.com"]
-                    """
-            )
-        )
+                    """))
         if test_role_arn:
-            fp.write(
-                dedent(
-                    f"""
+            fp.write(dedent(f"""
                     role_arn      = "{test_role_arn}"
-                    """
-                )
-            )
+                    """))
 
     with terraform_apply(
         terraform_module_dir,
