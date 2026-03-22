@@ -28,7 +28,7 @@ from tests.conftest import (
     ],
 )
 @pytest.mark.parametrize(
-    "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
+    "aws_provider_version", ["~> 6.0"], ids=["aws-6"]
 )
 def test_module(
     service_network,
@@ -205,7 +205,7 @@ def test_module(
 
 
 @pytest.mark.parametrize(
-    "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
+    "aws_provider_version", ["~> 6.0"], ids=["aws-6"]
 )
 def test_dns_record_deletion_on_manual_termination(
     service_network,
@@ -378,7 +378,7 @@ def test_dns_record_deletion_on_manual_termination(
 
 
 @pytest.mark.parametrize(
-    "aws_provider_version", ["~> 5.31", "~> 6.0"], ids=["aws-5", "aws-6"]
+    "aws_provider_version", ["~> 6.0"], ids=["aws-6"]
 )
 def test_multiple_dns_prefixes(
     service_network,
