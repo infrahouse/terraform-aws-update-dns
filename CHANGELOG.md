@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-03-23
+
+### Documentation
+
+- Add comprehensive documentation, architecture diagram, and examples
+- Add checkov config with skip rules for lock table
+
+### Ci
+
+- Drop aws-5 tests
+
 ## [1.2.1] - 2026-01-22
 
 ### Bug Fixes
