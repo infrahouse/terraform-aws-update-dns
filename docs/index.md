@@ -77,7 +77,7 @@ locals {
 
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name        = local.asg_name
   route53_zone_id = data.aws_route53_zone.my_zone.zone_id

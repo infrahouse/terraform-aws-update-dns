@@ -13,7 +13,7 @@ locals {
 
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name        = local.asg_name
   route53_zone_id = data.aws_route53_zone.internal.zone_id
@@ -32,7 +32,7 @@ For instances with public IPs (e.g., behind no load balancer):
 ```hcl
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name          = local.asg_name
   route53_zone_id   = data.aws_route53_zone.public.zone_id
@@ -49,7 +49,7 @@ Use a fixed hostname instead of auto-generated IP-based names:
 ```hcl
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name         = local.asg_name
   route53_zone_id  = data.aws_route53_zone.public.zone_id
@@ -71,7 +71,7 @@ Create several DNS records per instance with different prefixes:
 ```hcl
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name                  = local.asg_name
   route53_zone_id           = data.aws_route53_zone.public.zone_id
@@ -98,7 +98,7 @@ For production environments where transient Lambda errors are expected:
 ```hcl
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name        = local.asg_name
   route53_zone_id = data.aws_route53_zone.prod.zone_id
@@ -115,7 +115,7 @@ bootstrap script that runs after DNS is set up):
 ```hcl
 module "update-dns" {
   source  = "registry.infrahouse.com/infrahouse/update-dns/aws"
-  version = "1.2.1"
+  version = "1.3.0"
 
   asg_name                            = local.asg_name
   route53_zone_id                     = data.aws_route53_zone.my_zone.zone_id
