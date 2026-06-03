@@ -35,7 +35,7 @@ Test parameters are configurable: `TEST_REGION`, `TEST_ROLE`, `TEST_SELECTOR`.
 **Event flow:** ASG lifecycle hook -> CloudWatch EventBridge rule -> Lambda -> Route53 + DynamoDB
 
 **Key Terraform files:**
-- `lambda.tf` — Lambda module invocation (infrahouse/lambda-monitored/aws v1.0.4),
+- `lambda.tf` — Lambda module invocation (infrahouse/lambda-monitored/aws v1.1.1),
   IAM permissions, environment variables
 - `cloudwatch.tf` — EventBridge rule and target connecting lifecycle events to Lambda
 - `dynamodb.tf` — DynamoDB lock table for concurrency control
