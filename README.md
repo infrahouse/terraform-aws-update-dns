@@ -150,7 +150,7 @@ See the [`examples/`](examples/) directory for working configurations:
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_update_dns_lambda"></a> [update\_dns\_lambda](#module\_update\_dns\_lambda) | registry.infrahouse.com/infrahouse/lambda-monitored/aws | 1.0.4 |
+| <a name="module_update_dns_lambda"></a> [update\_dns\_lambda](#module\_update\_dns\_lambda) | registry.infrahouse.com/infrahouse/lambda-monitored/aws | 1.1.1 |
 
 ## Resources
 

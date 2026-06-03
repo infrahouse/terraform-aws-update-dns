@@ -50,7 +50,7 @@ resource "aws_iam_policy" "lambda_permissions" {
 
 module "update_dns_lambda" {
   source  = "registry.infrahouse.com/infrahouse/lambda-monitored/aws"
-  version = "1.0.4"
+  version = "1.1.1"
 
   function_name     = "update-dns-${var.asg_name}"
   lambda_source_dir = "${path.module}/update_dns"
