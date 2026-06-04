@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-06-04
+
+### Bug Fixes
+
+- Upgrade lambda-monitored module to 1.1.1 for Vanta S3 compliance
+
 ## [1.3.0] - 2026-03-23
 
 ### Documentation
