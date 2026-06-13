@@ -200,6 +200,12 @@ def lambda_handler(event, context):
     instance_id = event["detail"]["EC2InstanceId"]
     lc_hook_name = event["detail"]["LifecycleHookName"]
     lc_transition = event["detail"]["LifecycleTransition"]
+    # Warm-pool transitions are identified by the standard Origin/Destination fields.
+    # Positive-match on "WarmPool" (not != "AutoScalingGroup") so any event missing or
+    # carrying an unexpected value falls through to the normal add/remove behavior,
+    # keeping this change non-breaking for non-warm-pool consumers.
+    origin = event["detail"].get("Origin")
+    destination = event["detail"].get("Destination")
 
     if "LifecycleTransition" in event["detail"]:
         try:
@@ -207,6 +213,23 @@ def lambda_handler(event, context):
                 lc_hook_name == environ["LIFECYCLE_HOOK_TERMINATING"]
                 and lc_transition == "autoscaling:EC2_INSTANCE_TERMINATING"
             ):
+                if origin == "WarmPool":
+                    # Warm-pool instance being terminated (WarmPool -> EC2). It never
+                    # held a DNS record, and remove_record would crash on the missing
+                    # IP tag. Skip DNS and complete the hook so the ASG isn't left
+                    # waiting until HeartbeatTimeout -> ABANDON.
+                    LOG.info(
+                        f"Terminating event Origin=WarmPool on {instance_id}; "
+                        f"completing hook with no DNS removal."
+                    )
+                    ASG(
+                        event["detail"]["AutoScalingGroupName"]
+                    ).complete_lifecycle_action(
+                        hook_name=lc_hook_name,
+                        result="CONTINUE",
+                        instance_id=instance_id,
+                    )
+                    return
                 lock_ttl = int(os.getenv("LOCK_TTL", "60"))
                 with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock(
                     "update-dns", ttl=lock_ttl
@@ -228,6 +251,24 @@ def lambda_handler(event, context):
                 lc_hook_name == environ["LIFECYCLE_HOOK_LAUNCHING"]
                 and lc_transition == "autoscaling:EC2_INSTANCE_LAUNCHING"
             ):
+                if destination == "WarmPool":
+                    # Instance entering the warm pool (EC2 -> WarmPool). Not in service,
+                    # no traffic, possibly no stable IP -- no DNS record wanted. It will
+                    # be registered when it activates out of the pool
+                    # (Destination=AutoScalingGroup). Complete this module's hook now;
+                    # any readiness gating is the consumer's separate hook, not ours.
+                    LOG.info(
+                        f"Launching event Destination=WarmPool on {instance_id}; "
+                        f"completing hook with no DNS add."
+                    )
+                    ASG(
+                        event["detail"]["AutoScalingGroupName"]
+                    ).complete_lifecycle_action(
+                        hook_name=lc_hook_name,
+                        result="CONTINUE",
+                        instance_id=instance_id,
+                    )
+                    return
                 lock_ttl = int(os.getenv("LOCK_TTL", "60"))
                 with DynamoDBTable(os.getenv("LOCK_TABLE_NAME")).lock(
                     "update-dns", ttl=lock_ttl
