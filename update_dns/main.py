@@ -292,7 +292,16 @@ def lambda_handler(event, context):
                 LOG.warning("No action for this event.")
 
         except Exception as err:
+            # Log and re-raise: swallowing here reports the invocation as SUCCESS,
+            # which (a) skips the complete_lifecycle_action(CONTINUE) calls above so
+            # the hook is left in Wait until HeartbeatTimeout -> default_result, and
+            # (b) hides the failure from the Lambda Errors metric and EventBridge
+            # async retry, turning a transient Route53/DynamoDB error into a
+            # permanent one. Re-raising restores both. (Deliberately not ABANDON-
+            # then-raise: on a transient error we want the retry to recover, not
+            # tear the instance down.)
             LOG.exception(err)
+            raise
 
     else:
         LOG.warning("Event is not LifecycleTransition. Skip action.")

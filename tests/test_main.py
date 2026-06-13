@@ -75,8 +75,6 @@ def mocked_main(monkeypatch):
         "log_exception": log_exception,
     }
 
-    log_exception.assert_not_called()
-
 
 def _assert_hook_completed(asg):
     """The hook must always be completed with CONTINUE."""
@@ -200,3 +198,44 @@ def test_terminating_without_origin_destination_removes_record(mocked_main):
     )
     mocked_main["remove_record"].assert_called_once()
     _assert_hook_completed(mocked_main["asg"])
+
+
+# --- Exceptions must propagate, not be silently swallowed ---
+
+
+def test_add_records_failure_propagates(mocked_main):
+    """
+    A DNS failure on launch must propagate so the Lambda Errors metric fires and
+    EventBridge retries -- and the hook must NOT be completed with CONTINUE, since
+    the DNS work did not succeed.
+    """
+    mocked_main["add_records"].side_effect = RuntimeError("route53 boom")
+    with pytest.raises(RuntimeError, match="route53 boom"):
+        main.lambda_handler(
+            _make_event(
+                "autoscaling:EC2_INSTANCE_LAUNCHING",
+                LAUNCHING_HOOK,
+                origin="EC2",
+                destination="AutoScalingGroup",
+            ),
+            None,
+        )
+    mocked_main["asg"].return_value.complete_lifecycle_action.assert_not_called()
+    mocked_main["log_exception"].assert_called_once()
+
+
+def test_remove_record_failure_propagates(mocked_main):
+    """A DNS failure on termination must propagate (not be reported as success)."""
+    mocked_main["remove_record"].side_effect = RuntimeError("dynamodb boom")
+    with pytest.raises(RuntimeError, match="dynamodb boom"):
+        main.lambda_handler(
+            _make_event(
+                "autoscaling:EC2_INSTANCE_TERMINATING",
+                TERMINATING_HOOK,
+                origin="AutoScalingGroup",
+                destination="EC2",
+            ),
+            None,
+        )
+    mocked_main["asg"].return_value.complete_lifecycle_action.assert_not_called()
+    mocked_main["log_exception"].assert_called_once()
