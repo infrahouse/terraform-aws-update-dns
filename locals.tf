@@ -1,6 +1,6 @@
 locals {
   module         = "infrahouse/update-dns/aws"
-  module_version = "1.4.0"
+  module_version = "1.5.0"
   lambda_timeout = 60
 
   default_module_tags = merge(
