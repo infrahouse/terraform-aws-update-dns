@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-06-13
+
+### Bug Fixes
+
+- Re-raise in lifecycle handler instead of muting exceptions
+
+### Features
+
+- Skip DNS for warm-pool lifecycle transitions
+
 ## [1.4.0] - 2026-06-04
 
 ### Bug Fixes
