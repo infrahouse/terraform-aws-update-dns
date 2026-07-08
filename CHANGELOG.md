@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-07-08
+
+### Bug Fixes
+
+- Pin cryptography floor in lambda deps (GHSA-537c-gmf6-5ccf)
+
 ## [1.5.0] - 2026-06-13
 
 ### Bug Fixes
